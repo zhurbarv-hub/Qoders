@@ -1,0 +1,177 @@
+# -*- coding: utf-8 -*-
+"""
+Модуль конфигурации приложения
+Загружает настройки из .env файла и предоставляет доступ через глобальный объект settings
+"""
+
+from pydantic_settings import BaseSettings
+from pydantic import Field
+from typing import List
+import os
+
+class Settings(BaseSettings):
+    """
+    Класс настроек приложения
+    Автоматически загружает значения из переменных окружения и .env файла
+    """
+    
+    # ============================================
+    # Database Configuration
+    # ============================================
+    database_path: str = Field(
+        default="database/kkt_services.db",
+        description="Путь к SQLite базе данных"
+    )
+    
+    # ============================================
+    # JWT Authentication
+    # ============================================
+    jwt_secret_key: str = Field(
+        min_length=32,
+        description="Секретный ключ для подписи JWT токенов (минимум 32 символа)"
+    )
+    jwt_algorithm: str = Field(
+        default="HS256",
+        description="Алгоритм шифрования JWT"
+    )
+    jwt_expiration_hours: int = Field(
+        default=24,
+        description="Время жизни JWT токена в часах"
+    )
+    
+    # ============================================
+    # Telegram Bot Configuration
+    # ============================================
+    telegram_bot_token: str = Field(
+        description="Токен Telegram бота от @BotFather"
+    )
+    
+    # ============================================
+    # Notification Settings
+    # ============================================
+    notification_time: str = Field(
+        default="02:00",
+        description="Время ежедневной проверки сроков (формат HH:MM)"
+    )
+    alert_threshold_days: int = Field(
+        default=14,
+        description="За сколько дней до истечения отправлять уведомления"
+    )
+    
+    # ============================================
+    # API Server Configuration
+    # ============================================
+    api_host: str = Field(
+        default="0.0.0.0",
+        description="Хост API сервера"
+    )
+    api_port: int = Field(
+        default=8000,
+        description="Порт API сервера"
+    )
+    api_reload: bool = Field(
+        default=True,
+        description="Автоматическая перезагрузка при изменении кода (только для разработки)"
+    )
+    
+    # ============================================
+    # Logging Configuration
+    # ============================================
+    log_level: str = Field(
+        default="INFO",
+        description="Уровень логирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    )
+    log_file: str = Field(
+        default="logs/application.log",
+        description="Путь к файлу логов"
+    )
+    
+    # ============================================
+    # CORS Settings
+    # ============================================
+    cors_origins: str = Field(
+        default="http://localhost:8000",
+        description="Разрешённые источники для CORS (разделённые запятой)"
+    )
+    
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """
+        Преобразование строки CORS источников в список
+        
+        Returns:
+            List[str]: Список разрешённых источников
+        """
+        return [origin.strip() for origin in self.cors_origins.split(",")]
+    
+    @property
+    def database_url(self) -> str:
+        """
+        Получение полного URL базы данных для SQLAlchemy
+        
+        Returns:
+            str: URL подключения к базе данных
+        """
+        return f"sqlite:///{self.database_path}"
+    
+    class Config:
+        """Конфигурация Pydantic"""
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+        extra = "ignore"  # Игнорировать дополнительные поля
+
+# ============================================
+# Глобальный экземпляр настроек
+# ============================================
+try:
+    settings = Settings()
+except Exception as e:
+    print(f"❌ ОШИБКА ЗАГРУЗКИ КОНФИГУРАЦИИ: {e}")
+    print("\n📝 Убедитесь, что:")
+    print("   1. Файл .env существует")
+    print("   2. Все обязательные переменные заполнены")
+    print("   3. JWT_SECRET_KEY имеет минимум 32 символа")
+    print("\n💡 Запустите: python generate_env.py")
+    raise
+
+# ============================================
+# Проверка конфигурации при импорте (для отладки)
+# ============================================
+if __name__ == "__main__":
+    print("=" * 60)
+    print("ПРОВЕРКА КОНФИГУРАЦИИ")
+    print("=" * 60)
+    
+    print(f"\n📁 База данных:")
+    print(f"   Path: {settings.database_path}")
+    print(f"   URL: {settings.database_url}")
+    print(f"   Exists: {os.path.exists(settings.database_path)}")
+    
+    print(f"\n🔐 JWT:")
+    print(f"   Algorithm: {settings.jwt_algorithm}")
+    print(f"   Expiration: {settings.jwt_expiration_hours} hours")
+    print(f"   Secret Key: {settings.jwt_secret_key[:15]}... ({len(settings.jwt_secret_key)} chars)")
+    
+    print(f"\n🤖 Telegram Bot:")
+    print(f"   Token: {settings.telegram_bot_token[:20]}...")
+    
+    print(f"\n🔔 Notifications:")
+    print(f"   Time: {settings.notification_time}")
+    print(f"   Threshold: {settings.alert_threshold_days} days")
+    
+    print(f"\n🌐 API Server:")
+    print(f"   Host: {settings.api_host}")
+    print(f"   Port: {settings.api_port}")
+    print(f"   Reload: {settings.api_reload}")
+    
+    print(f"\n📝 Logging:")
+    print(f"   Level: {settings.log_level}")
+    print(f"   File: {settings.log_file}")
+    
+    print(f"\n🔗 CORS:")
+    print(f"   Origins: {settings.cors_origins_list}")
+    
+    print("\n" + "=" * 60)
+    print("✅ КОНФИГУРАЦИЯ ЗАГРУЖЕНА УСПЕШНО")
+    print("=" * 60)
