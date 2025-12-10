@@ -1,0 +1,80 @@
+/* Общие стили */
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+}
+
+/* Страница входа */
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+}
+
+.login-card {
+    width: 100%;
+    margin: 0 auto;
+}
+
+.login-form {
+    width: 100%;
+}
+
+.mdl-textfield {
+    width: 100%;
+}
+
+.login-actions {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.login-actions button {
+    width: 100%;
+}
+
+.error-message {
+    color: #f44336;
+    background-color: #ffebee;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.login-footer {
+    text-align: center;
+    color: white;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+/* Spinner */
+#loadingSpinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+}
+
+/* Dashboard */
+.page-content {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.mdl-card {
+    margin-bottom: 20px;
+}
