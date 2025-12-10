@@ -46,16 +46,46 @@ class Settings(BaseSettings):
         description="Токен Telegram бота от @BotFather"
     )
     
+    telegram_admin_id: int = Field(
+        description="Telegram ID администратора для полного доступа"
+    )
+    
     # ============================================
     # Notification Settings
     # ============================================
     notification_time: str = Field(
         default="02:00",
-        description="Время ежедневной проверки сроков (формат HH:MM)"
+        description="Время ежедневной проверки сроков (формат HH:MM) - deprecated"
     )
+    
+    notification_check_time: str = Field(
+        default="09:00",
+        description="Время ежедневной проверки дедлайнов (формат HH:MM)"
+    )
+    
+    notification_timezone: str = Field(
+        default="UTC",
+        description="Часовой пояс для планировщика"
+    )
+    
+    notification_days: str = Field(
+        default="14,7,3",
+        description="За сколько дней до истечения отправлять уведомления (через запятую)"
+    )
+    
+    notification_retry_attempts: int = Field(
+        default=3,
+        description="Количество попыток повтора при ошибке отправки"
+    )
+    
+    notification_retry_delay: int = Field(
+        default=300,
+        description="Задержка между попытками отправки (секунды)"
+    )
+    
     alert_threshold_days: int = Field(
         default=14,
-        description="За сколько дней до истечения отправлять уведомления"
+        description="За сколько дней до истечения отправлять уведомления - deprecated"
     )
     
     # ============================================
@@ -114,6 +144,16 @@ class Settings(BaseSettings):
         """
         return f"sqlite:///{self.database_path}"
     
+    @property
+    def notification_days_list(self) -> List[int]:
+        """
+        Преобразование строки дней уведомлений в список целых чисел
+        
+        Returns:
+            List[int]: Список дней [14, 7, 3]
+        """
+        return [int(day.strip()) for day in self.notification_days.split(",")]
+    
     class Config:
         """Конфигурация Pydantic"""
         env_file = ".env"
@@ -132,6 +172,8 @@ except Exception as e:
     print("   1. Файл .env существует")
     print("   2. Все обязательные переменные заполнены")
     print("   3. JWT_SECRET_KEY имеет минимум 32 символа")
+    print("   4. TELEGRAM_BOT_TOKEN получен от @BotFather")
+    print("   5. TELEGRAM_ADMIN_ID - ваш Telegram ID")
     print("\n💡 Запустите: python generate_env.py")
     raise
 
@@ -155,10 +197,14 @@ if __name__ == "__main__":
     
     print(f"\n🤖 Telegram Bot:")
     print(f"   Token: {settings.telegram_bot_token[:20]}...")
+    print(f"   Admin ID: {settings.telegram_admin_id}")
     
     print(f"\n🔔 Notifications:")
-    print(f"   Time: {settings.notification_time}")
-    print(f"   Threshold: {settings.alert_threshold_days} days")
+    print(f"   Check Time: {settings.notification_check_time}")
+    print(f"   Timezone: {settings.notification_timezone}")
+    print(f"   Days: {settings.notification_days_list}")
+    print(f"   Retry Attempts: {settings.notification_retry_attempts}")
+    print(f"   Retry Delay: {settings.notification_retry_delay}s")
     
     print(f"\n🌐 API Server:")
     print(f"   Host: {settings.api_host}")

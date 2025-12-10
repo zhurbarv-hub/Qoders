@@ -1,0 +1,73 @@
+{
+  "export_date": "2025-12-10T19:22:07.798192",
+  "client_name": "All Clients",
+  "deadlines_count": 6,
+  "deadlines": [
+    {
+      "id": 1,
+      "client_name": "ООО \"Ромашка\"",
+      "client_inn": "7701234567",
+      "deadline_type": "OFD",
+      "expiration_date": "2026-01-22",
+      "days_remaining": 43,
+      "notes": "Ежегодное продление договора с ОФД",
+      "status": "active",
+      "created_at": "2025-12-08T08:20:04"
+    },
+    {
+      "id": 2,
+      "client_name": "ООО \"Ромашка\"",
+      "client_inn": "7701234567",
+      "deadline_type": "KKT Registration",
+      "expiration_date": "2026-04-07",
+      "days_remaining": 118,
+      "notes": "Плановая перерегистрация",
+      "status": "active",
+      "created_at": "2025-12-08T08:20:04"
+    },
+    {
+      "id": 3,
+      "client_name": "ИП Петров П.П.",
+      "client_inn": "123456789012",
+      "deadline_type": "OFD",
+      "expiration_date": "2025-12-18",
+      "days_remaining": 8,
+      "notes": "СРОЧНО! Скоро истекает",
+      "status": "active",
+      "created_at": "2025-12-08T08:20:04"
+    },
+    {
+      "id": 4,
+      "client_name": "ИП Петров П.П.",
+      "client_inn": "123456789012",
+      "deadline_type": "Software License",
+      "expiration_date": "2025-12-13",
+      "days_remaining": 3,
+      "notes": "КРИТИЧНО! Обновить лицензию",
+      "status": "active",
+      "created_at": "2025-12-08T08:20:04"
+    },
+    {
+      "id": 5,
+      "client_name": "ООО \"Торговый Дом\"",
+      "client_inn": "7702345678",
+      "deadline_type": "Technical Support",
+      "expiration_date": "2026-02-06",
+      "days_remaining": 58,
+      "notes": "Продление тех. поддержки",
+      "status": "active",
+      "created_at": "2025-12-08T08:20:04"
+    },
+    {
+      "id": 6,
+      "client_name": "ООО \"Торговый Дом\"",
+      "client_inn": "7702345678",
+      "deadline_type": "Network Service",
+      "expiration_date": "2026-03-08",
+      "days_remaining": 88,
+      "notes": "Оплата сетевых услуг",
+      "status": "active",
+      "created_at": "2025-12-08T08:20:04"
+    }
+  ]
+}
