@@ -10,12 +10,14 @@ from aiogram import Bot
 from sqlalchemy.orm import Session
 
 from bot.services.notifier import process_deadline_notifications
+from bot.services.api_client import WebAPIClient
+from bot.services.exceptions import APIError, ConnectionError as APIConnectionError
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-async def scheduled_deadline_check(bot: Bot, db_session: Session):
+async def scheduled_deadline_check(bot: Bot, db_session: Session, api_client: WebAPIClient = None):
     """
     Запланированная проверка дедлайнов
     Вызывается автоматически по расписанию
@@ -23,8 +25,20 @@ async def scheduled_deadline_check(bot: Bot, db_session: Session):
     Args:
         bot: Экземпляр бота для отправки уведомлений
         db_session: Сессия базы данных
+        api_client: API клиент для проверки здоровья (опционально)
     """
     logger.info("⏰ ЗАПУСК АВТОМАТИЧЕСКОЙ ПРОВЕРКИ ДЕДЛАЙНОВ")
+    
+    # Health check API перед началом проверки
+    api_available = True
+    if api_client:
+        try:
+            logger.info("🔍 Проверка доступности Web API...")
+            stats = await api_client.get_dashboard_stats()
+            logger.info(f"✅ Web API доступен. Активных дедлайнов: {stats.get('active_deadlines_count', 0)}")
+        except (APIError, APIConnectionError, Exception) as e:
+            logger.warning(f"⚠️ Web API недоступен, будет использован fallback: {e}")
+            api_available = False
     
     try:
         # Получаем дни для проверки из конфигурации
@@ -34,7 +48,8 @@ async def scheduled_deadline_check(bot: Bot, db_session: Session):
             'checked': 0,
             'sent': 0,
             'failed': 0,
-            'skipped': 0
+            'skipped': 0,
+            'api_used': api_available
         }
         
         # Проверяем для каждого периода
@@ -62,6 +77,9 @@ async def scheduled_deadline_check(bot: Bot, db_session: Session):
         
         # Уведомляем администратора о результатах
         if total_stats['sent'] > 0 or total_stats['failed'] > 0:
+            # Добавляем информацию об источнике данных
+            data_source = "🔌 Web API" if api_available else "💾 База данных (fallback)"
+            
             report = f"""
 🔔 <b>Автоматическая проверка завершена</b>
 
@@ -71,7 +89,8 @@ async def scheduled_deadline_check(bot: Bot, db_session: Session):
 • Пропущено: {total_stats['skipped']}
 • Ошибок: {total_stats['failed']}
 
-⏰ Время проверки: {datetime.now().strftime('%H:%M:%S')}
+📡 <b>Источник данных:</b> {data_source}
+⏰ <b>Время проверки:</b> {datetime.now().strftime('%H:%M:%S')}
 """.strip()
             
             try:
@@ -99,13 +118,14 @@ async def scheduled_deadline_check(bot: Bot, db_session: Session):
             pass
 
 
-def setup_scheduler(bot: Bot, db_session: Session) -> AsyncIOScheduler:
+def setup_scheduler(bot: Bot, db_session: Session, api_client: WebAPIClient = None) -> AsyncIOScheduler:
     """
     Настройка и запуск планировщика задач
     
     Args:
         bot: Экземпляр бота
         db_session: Сессия базы данных
+        api_client: API клиент для health checks (опционально)
         
     Returns:
         AsyncIOScheduler: Настроенный планировщик
@@ -128,7 +148,7 @@ def setup_scheduler(bot: Bot, db_session: Session) -> AsyncIOScheduler:
     scheduler.add_job(
         scheduled_deadline_check,
         trigger=trigger,
-        args=[bot, db_session],
+        args=[bot, db_session, api_client],  # Передаём api_client
         id='deadline_check',
         name='Ежедневная проверка дедлайнов',
         replace_existing=True
@@ -139,6 +159,11 @@ def setup_scheduler(bot: Bot, db_session: Session) -> AsyncIOScheduler:
         f"({settings.notification_timezone})"
     )
     logger.info(f"📋 Дни уведомлений: {', '.join(map(str, settings.notification_days_list))}")
+    
+    if api_client:
+        logger.info(f"🔌 Web API интеграция включена")
+    else:
+        logger.warning(f"⚠️ API клиент не передан, будет использоваться только БД")
     
     return scheduler
 

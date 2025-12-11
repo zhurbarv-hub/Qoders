@@ -1,6 +1,6 @@
 """
 Главный модуль запуска Telegram бота
-Инициализация бота, диспетчера, middleware и запуск polling
+Инициализация бота, диспетчера, middleware, API клиента и запуск polling
 """
 import asyncio
 import logging
@@ -12,9 +12,17 @@ from aiogram.client.default import DefaultBotProperties
 from bot.config import bot_config
 from bot.middlewares.auth import AuthMiddleware
 from bot.middlewares.logging import LoggingMiddleware
-from bot.handlers import common, admin, deadlines, settings, search
+from bot.handlers import common, admin, deadlines
+from bot.handlers import settings as settings_handler  # ← Переименовали
+from bot.handlers import search
 from bot.scheduler import setup_scheduler
 from backend.database import SessionLocal
+from backend.config import settings  # ← Конфигурация остаётся settings
+
+# Импорт API клиента
+from bot.services.token_manager import TokenManager
+from bot.services.api_client import WebAPIClient
+from bot.services import checker
 
 # Настройка логирования
 logging.basicConfig(
@@ -52,6 +60,41 @@ def create_dispatcher() -> Dispatcher:
     return Dispatcher()
 
 
+async def create_api_client() -> WebAPIClient:
+    """
+    Создание и инициализация Web API клиента
+    
+    Returns:
+        WebAPIClient: Настроенный API клиент
+    """
+    logger.info("🔌 Инициализация Web API клиента...")
+    
+    # Создаём менеджер токенов
+    token_manager = TokenManager(
+        api_base_url=settings.web_api_base_url,
+        username=settings.bot_api_username,
+        password=settings.bot_api_password,
+        refresh_interval=settings.bot_token_refresh_interval
+    )
+    
+    # Создаём API клиент
+    api_client = WebAPIClient(
+        base_url=settings.web_api_base_url,
+        token_manager=token_manager,
+        timeout=settings.web_api_timeout
+    )
+    
+    # Проверяем подключение к API
+    try:
+        stats = await api_client.get_dashboard_stats()
+        logger.info(f"✅ Web API подключён успешно!")
+        logger.info(f"   Клиентов: {stats.get('active_clients_count', 0)}, Дедлайнов: {stats.get('active_deadlines_count', 0)}")
+    except Exception as e:
+        logger.warning(f"⚠️ Web API недоступен (будет использован fallback): {e}")
+    
+    return api_client
+
+
 def setup_middlewares(dp: Dispatcher):
     """
     Регистрация middleware в правильном порядке
@@ -82,7 +125,7 @@ def register_handlers(dp: Dispatcher):
     dp.include_router(admin.router)      # Административные команды
     dp.include_router(search.router)     # Команды поиска
     dp.include_router(deadlines.router)  # Команды работы с дедлайнами
-    dp.include_router(settings.router)   # Команды настроек
+    dp.include_router(settings_handler.router)   # Команды настроек
     dp.include_router(common.router)     # Общие команды (должны быть последними)
     
     logger.info("✅ Обработчики команд зарегистрированы")
@@ -101,12 +144,19 @@ async def main():
     dp = create_dispatcher()
     db_session = SessionLocal()
     
+    # Создаём и настраиваем API клиент
+    api_client = await create_api_client()
+    
+    # Устанавливаем API клиент в checker service
+    checker.set_api_client(api_client)
+    logger.info("✅ API клиент установлен в сервисы бота")
+    
     # Настройка middleware и обработчиков
     setup_middlewares(dp)
     register_handlers(dp)
     
-    # Настройка планировщика
-    scheduler = setup_scheduler(bot, db_session)
+    # Настройка планировщика (передаём api_client)
+    scheduler = setup_scheduler(bot, db_session, api_client)
     scheduler.start()
     logger.info("✅ Планировщик запущен")
     
@@ -120,6 +170,7 @@ async def main():
         logger.info("=" * 60)
         logger.info(f"⏰ Время проверки: {bot_config.notification_check_time} ({bot_config.notification_timezone})")
         logger.info(f"📅 Дни уведомлений: {', '.join(map(str, bot_config.notification_days_list))}")
+        logger.info(f"🔌 Web API: {settings.web_api_base_url}")
         logger.info("=" * 60)
         logger.info("✅ Бот готов к работе! Нажмите Ctrl+C для остановки")
         logger.info("=" * 60)
@@ -139,6 +190,11 @@ async def main():
         logger.info("🛑 Остановка бота...")
         scheduler.shutdown(wait=False)
         db_session.close()
+        
+        # Закрываем API клиент
+        await api_client.close()
+        logger.info("✅ API клиент закрыт")
+        
         await bot.session.close()
         logger.info("✅ Бот остановлен")
 

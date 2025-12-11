@@ -124,6 +124,34 @@ class Settings(BaseSettings):
         description="Разрешённые источники для CORS (разделённые запятой)"
     )
     
+    # ============================================
+    # Web API Integration for Bot
+    # ============================================
+    web_api_base_url: str = Field(
+        default="http://localhost:8000",
+        description="URL Web API для подключения бота"
+    )
+    
+    web_api_timeout: int = Field(
+        default=30,
+        description="Таймаут запросов к API (секунды)"
+    )
+    
+    bot_api_username: str = Field(
+        default="admin",
+        description="Имя пользователя бота для аутентификации в Web API"
+    )
+    
+    bot_api_password: str = Field(
+        default="admin",
+        description="Пароль бота для аутентификации в Web API"
+    )
+    
+    bot_token_refresh_interval: int = Field(
+        default=3600,
+        description="Интервал обновления JWT токена (секунды)"
+    )
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """
@@ -217,6 +245,12 @@ if __name__ == "__main__":
     
     print(f"\n🔗 CORS:")
     print(f"   Origins: {settings.cors_origins_list}")
+    
+    print(f"\n🔌 Web API Integration:")
+    print(f"   Base URL: {settings.web_api_base_url}")
+    print(f"   Timeout: {settings.web_api_timeout}s")
+    print(f"   Bot Username: {settings.bot_api_username}")
+    print(f"   Token Refresh: {settings.bot_token_refresh_interval}s")
     
     print("\n" + "=" * 60)
     print("✅ КОНФИГУРАЦИЯ ЗАГРУЖЕНА УСПЕШНО")

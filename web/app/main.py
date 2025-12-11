@@ -5,13 +5,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 import logging
 import os
 
 # ОТНОСИТЕЛЬНЫЕ ИМПОРТЫ
 from .config import settings
-from .api import auth
+from .api import auth, clients, deadline_types, deadlines, dashboard
 
 # Настройка логирования
 logging.basicConfig(
@@ -40,6 +40,10 @@ app.add_middleware(
 
 # Подключение роутеров API
 app.include_router(auth.router)
+app.include_router(clients.router)
+app.include_router(deadline_types.router)
+app.include_router(deadlines.router)
+app.include_router(dashboard.router)
 
 # Путь к статическим файлам
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -59,6 +63,12 @@ async def startup_event():
     logger.info(f"📊 База данных: {settings.database_url}")
     logger.info(f"🌐 CORS origins: {settings.cors_origins}")
     logger.info(f"🔐 JWT срок действия: {settings.access_token_expire_minutes} минут")
+    logger.info(f"📡 API endpoints:")
+    logger.info(f"  - /api/auth (Authentication)")
+    logger.info(f"  - /api/clients (Clients)")
+    logger.info(f"  - /api/deadline-types (Deadline Types)")
+    logger.info(f"  - /api/deadlines (Deadlines)")
+    logger.info(f"  - /api/dashboard (Dashboard)")
 
 
 @app.on_event("shutdown")
@@ -94,6 +104,12 @@ async def info():
             "docs": "/api/docs",
             "redoc": "/api/redoc",
             "login": "/static/login.html",
-            "api_auth": "/api/auth/login"
+            "api": {
+                "auth": "/api/auth/login",
+                "clients": "/api/clients",
+                "deadline_types": "/api/deadline-types",
+                "deadlines": "/api/deadlines",
+                "dashboard": "/api/dashboard/stats"
+            }
         }
     }
