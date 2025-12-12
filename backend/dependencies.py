@@ -257,38 +257,60 @@ def get_pagination_params(page: int = 1, limit: int = 50) -> PaginationParams:
 # Query Filter Dependencies
 # ============================================
 
-class ClientFilterParams:
+class UserFilterParams:
     """
-    Filter parameters for client list endpoint
+    Filter parameters for user list endpoint (replaces ClientFilterParams)
     
     Attributes:
-        search: Search query for name or INN
-        active_only: Filter only active clients
+        role: Filter by user role (client/manager/admin)
+        search: Search query for name, email, INN, or company name
+        active_only: Filter only active users
     """
     def __init__(
         self,
+        role: Optional[str] = None,
         search: Optional[str] = None,
         active_only: bool = True
     ):
+        self.role = role
         self.search = search
         self.active_only = active_only
+
+
+def get_user_filter_params(
+    role: Optional[str] = None,
+    search: Optional[str] = None,
+    active_only: bool = True
+) -> UserFilterParams:
+    """
+    Dependency for user filter parameters
+    
+    Args:
+        role: Optional role filter (client/manager/admin)
+        search: Optional search query
+        active_only: Whether to show only active users
+    
+    Returns:
+        UserFilterParams: Filter parameters
+    """
+    return UserFilterParams(role=role, search=search, active_only=active_only)
+
+
+# DEPRECATED: Use get_user_filter_params instead
+ClientFilterParams = UserFilterParams
 
 
 def get_client_filter_params(
     search: Optional[str] = None,
     active_only: bool = True
-) -> ClientFilterParams:
+) -> UserFilterParams:
     """
-    Dependency for client filter parameters
+    DEPRECATED: Use get_user_filter_params instead
     
-    Args:
-        search: Optional search query
-        active_only: Whether to show only active clients
-    
-    Returns:
-        ClientFilterParams: Filter parameters
+    Legacy dependency for backward compatibility
+    Filters users with role='client'
     """
-    return ClientFilterParams(search=search, active_only=active_only)
+    return UserFilterParams(role='client', search=search, active_only=active_only)
 
 
 class DeadlineFilterParams:
@@ -296,7 +318,8 @@ class DeadlineFilterParams:
     Filter parameters for deadline list endpoint
     
     Attributes:
-        client_id: Filter by client
+        client_id: Filter by user (client) - DEPRECATED, use user_id
+        user_id: Filter by user (client)
         deadline_type_id: Filter by deadline type
         status: Filter by status color
         sort_by: Sort field
@@ -304,13 +327,16 @@ class DeadlineFilterParams:
     """
     def __init__(
         self,
-        client_id: Optional[int] = None,
+        client_id: Optional[int] = None,  # Legacy parameter
+        user_id: Optional[int] = None,
         deadline_type_id: Optional[int] = None,
         status: Optional[str] = None,
         sort_by: str = "expiration_date",
         order: str = "asc"
     ):
-        self.client_id = client_id
+        # Support both client_id (legacy) and user_id
+        self.client_id = user_id or client_id  # client_id used for backward compatibility
+        self.user_id = user_id or client_id
         self.deadline_type_id = deadline_type_id
         self.status = status
         self.sort_by = sort_by
@@ -318,7 +344,8 @@ class DeadlineFilterParams:
 
 
 def get_deadline_filter_params(
-    client_id: Optional[int] = None,
+    client_id: Optional[int] = None,  # Legacy parameter
+    user_id: Optional[int] = None,
     deadline_type_id: Optional[int] = None,
     status: Optional[str] = None,
     sort_by: str = "expiration_date",
@@ -328,7 +355,8 @@ def get_deadline_filter_params(
     Dependency for deadline filter parameters
     
     Args:
-        client_id: Optional client ID filter
+        client_id: DEPRECATED - Use user_id instead (kept for backward compatibility)
+        user_id: Optional user ID filter
         deadline_type_id: Optional deadline type ID filter
         status: Optional status filter (green/yellow/red/expired)
         sort_by: Sort field (default: expiration_date)
@@ -339,6 +367,7 @@ def get_deadline_filter_params(
     """
     return DeadlineFilterParams(
         client_id=client_id,
+        user_id=user_id,
         deadline_type_id=deadline_type_id,
         status=status,
         sort_by=sort_by,
@@ -350,36 +379,69 @@ def get_deadline_filter_params(
 # Resource Validation Dependencies
 # ============================================
 
-def get_client_or_404(client_id: int, db: Session = Depends(get_db)):
+def get_user_or_404(user_id: int, db: Session = Depends(get_db)):
     """
-    Get client by ID or raise 404
+    Get user by ID or raise 404
     
     Args:
-        client_id: Client ID to fetch
+        user_id: User ID to fetch
         db: Database session
     
     Returns:
-        Client: Client object
+        User: User object
     
     Raises:
-        HTTPException: 404 if client not found
+        HTTPException: 404 if user not found
     
     Usage:
-        @app.get("/clients/{client_id}")
-        def get_client(client = Depends(get_client_or_404)):
-            return client
+        @app.get("/users/{user_id}")
+        def get_user_details(user = Depends(get_user_or_404)):
+            return user
     """
-    from backend.models import Client
+    user = db.query(User).filter(User.id == user_id).first()
     
-    client = db.query(Client).filter(Client.id == client_id).first()
-    
-    if client is None:
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client with id {client_id} not found"
+            detail=f"Пользователь с ID {user_id} не найден"
         )
     
-    return client
+    return user
+
+
+# DEPRECATED: Use get_user_or_404 instead
+def get_client_or_404(client_id: int, db: Session = Depends(get_db)):
+    """
+    DEPRECATED: Use get_user_or_404 instead
+    
+    Get user (client) by ID or raise 404
+    Kept for backward compatibility
+    
+    Args:
+        client_id: User ID to fetch (legacy parameter name)
+        db: Database session
+    
+    Returns:
+        User: User object with role='client'
+    
+    Raises:
+        HTTPException: 404 if user not found or not a client
+    """
+    user = db.query(User).filter(User.id == client_id).first()
+    
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Клиент с ID {client_id} не найден"
+        )
+    
+    if not user.is_client:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Пользователь с ID {client_id} не является клиентом (роль: {user.role})"
+        )
+    
+    return user
 
 
 def get_deadline_or_404(deadline_id: int, db: Session = Depends(get_db)):
@@ -403,7 +465,7 @@ def get_deadline_or_404(deadline_id: int, db: Session = Depends(get_db)):
     if deadline is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Deadline with id {deadline_id} not found"
+            detail=f"Дедлайн с ID {deadline_id} не найден"
         )
     
     return deadline
@@ -424,10 +486,12 @@ if __name__ == "__main__":
     print("  • get_current_admin_user - Проверка прав администратора")
     print("  • get_optional_user - Опциональная аутентификация")
     print("  • get_pagination_params - Параметры пагинации")
-    print("  • get_client_filter_params - Фильтры для списка клиентов")
+    print("  • get_user_filter_params - Фильтры для списка пользователей")
     print("  • get_deadline_filter_params - Фильтры для списка дедлайнов")
-    print("  • get_client_or_404 - Получение клиента или 404")
+    print("  • get_user_or_404 - Получение пользователя или 404")
     print("  • get_deadline_or_404 - Получение дедлайна или 404")
+    print("  • [DEPRECATED] get_client_filter_params - Используйте get_user_filter_params")
+    print("  • [DEPRECATED] get_client_or_404 - Используйте get_user_or_404")
     
     print("\n" + "=" * 60)
     print("✅ МОДУЛЬ ГОТОВ К ИСПОЛЬЗОВАНИЮ")

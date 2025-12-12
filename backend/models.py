@@ -15,40 +15,147 @@ from backend.database import Base
 
 class User(Base):
     """
-    Administrator accounts for web interface access
+    Unified user accounts for all system users (clients, managers, administrators)
+    
+    This model combines what was previously separated into users, clients, and contacts.
+    All system participants are now users with different roles:
+    - 'client': Organization clients (have inn, company_name, can use Telegram)
+    - 'manager': Support team members with limited admin rights
+    - 'admin': Full system administrators
     
     Attributes:
         id: Unique user identifier
         email: Login email address (unique)
-        password_hash: Bcrypt hashed password
-        full_name: Administrator full name
-        role: User role (admin, manager)
+        password_hash: Bcrypt hashed password (NULL for clients not yet registered)
+        full_name: User's full name or contact person name
+        role: User role (client, manager, admin)
+        
+        # Client-specific fields (NULL for managers/admins)
+        inn: Tax identification number (10 or 12 digits, unique)
+        company_name: Organization name for clients
+        
+        # Contact information (for all users)
+        phone: Contact phone number
+        address: Physical address
+        notes: Additional notes
+        
+        # Telegram integration (primarily for clients)
+        telegram_id: Telegram user ID (unique)
+        telegram_username: Telegram username
+        registration_code: One-time registration code
+        code_expires_at: Registration code expiration
+        first_name: First name from Telegram
+        last_name: Last name from Telegram
+        
+        # Notification settings (only for clients)
+        notification_days: Comma-separated days for notifications (e.g. '30,14,7,3')
+        notifications_enabled: Enable/disable notifications
+        
+        # Status and metadata
         is_active: Account active status
+        registered_at: Registration timestamp
+        last_interaction: Last activity timestamp
         created_at: Account creation timestamp
         updated_at: Last update timestamp
+    
+    Relationships:
+        deadlines: Collection of all deadlines for this user (CASCADE DELETE)
     """
     __tablename__ = "users"
     
     # Primary Key
     id = Column(Integer, primary_key=True, autoincrement=True)
     
-    # User Credentials
+    # Authentication
     email = Column(String(255), nullable=False, unique=True, index=True)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)  # NULL for clients not yet registered
     
-    # User Information
-    full_name = Column(String(255), nullable=True)
-    role = Column(String(20), nullable=False, default='admin', index=True)
+    # Common fields
+    full_name = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False, default='client', index=True)
     
-    # Status
+    # Client-specific fields (NULL for managers/admins)
+    inn = Column(String(12), nullable=True, unique=True, index=True)
+    company_name = Column(String(255), nullable=True)
+    
+    # Contact information (for all users)
+    phone = Column(String(20), nullable=True)
+    address = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    # Telegram integration
+    telegram_id = Column(String(50), nullable=True, unique=True, index=True)
+    telegram_username = Column(String(100), nullable=True)
+    registration_code = Column(String(20), nullable=True, unique=True)
+    code_expires_at = Column(DateTime, nullable=True)
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
+    
+    # Notification settings (for clients)
+    notification_days = Column(String(100), nullable=False, default='14,7,3')
+    notifications_enabled = Column(Boolean, nullable=False, default=True)
+    
+    # Status and metadata
     is_active = Column(Boolean, nullable=False, default=True, index=True)
-    
-    # Timestamps
+    registered_at = Column(DateTime, nullable=False, server_default=func.now())
+    last_interaction = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     
+    # Relationships
+    deadlines = relationship("Deadline", back_populates="user", cascade="all, delete-orphan")
+    
+    # Check Constraints
+    __table_args__ = (
+        CheckConstraint("role IN ('client', 'manager', 'admin')", name='check_role'),
+        CheckConstraint('inn IS NULL OR length(inn) IN (10, 12)', name='check_inn_length'),
+        Index('ix_users_role_active', 'role', 'is_active'),
+    )
+    
+    # Helper Properties
+    
+    @property
+    def notification_days_list(self):
+        """Parse notification_days string to list of integers"""
+        if not self.notification_days:
+            return [14, 7, 3]
+        try:
+            return [int(day.strip()) for day in self.notification_days.split(',') if day.strip()]
+        except (ValueError, AttributeError):
+            return [14, 7, 3]
+    
+    @property
+    def is_registered(self):
+        """Check if user has completed registration (has password or telegram_id)"""
+        return (self.password_hash is not None and len(str(self.password_hash).strip()) > 0) or \
+               (self.telegram_id is not None and len(str(self.telegram_id).strip()) > 0)
+    
+    @property
+    def is_code_valid(self):
+        """Check if registration code hasn't expired"""
+        if not self.registration_code or not self.code_expires_at:
+            return False
+        return datetime.now() < self.code_expires_at
+    
+    @property
+    def is_client(self):
+        """Check if user is a client"""
+        return self.role == 'client'
+    
+    @property
+    def is_support(self):
+        """Check if user is support team (manager or admin)"""
+        return self.role in ['manager', 'admin']
+    
+    @property
+    def display_name(self):
+        """Get user display name (full_name or company_name for clients)"""
+        if self.is_client and self.company_name:
+            return f"{self.company_name} ({self.full_name})"
+        return self.full_name
+    
     def __repr__(self):
-        return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"
+        return f"<User(id={self.id}, email='{self.email}', role='{self.role}', inn='{self.inn}')>"
     
     def to_dict(self):
         """Convert model instance to dictionary"""
@@ -57,82 +164,51 @@ class User(Base):
             'email': self.email,
             'full_name': self.full_name,
             'role': self.role,
-            'is_active': self.is_active,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        }
-
-
-class Client(Base):
-    """
-    Client organizations using cash register services
-    
-    Attributes:
-        id: Unique client identifier
-        name: Client organization name (unique)
-        inn: Tax identification number (10 or 12 digits, unique)
-        contact_person: Primary contact person name
-        phone: Contact phone number
-        email: Contact email address
-        address: Physical address
-        notes: Additional notes about client
-        is_active: Client active status
-        created_at: Record creation timestamp
-        updated_at: Last update timestamp
-    
-    Relationships:
-        deadlines: Collection of all deadlines for this client (CASCADE DELETE)
-        contacts: Collection of Telegram contacts for this client (CASCADE DELETE)
-    """
-    __tablename__ = "clients"
-    
-    # Primary Key
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    
-    # Client Information
-    name = Column(String(255), nullable=False, unique=True, index=True)
-    inn = Column(String(12), nullable=False, unique=True, index=True)
-    contact_person = Column(String(255), nullable=True)
-    phone = Column(String(20), nullable=True)
-    email = Column(String(255), nullable=True)
-    address = Column(Text, nullable=True)
-    notes = Column(Text, nullable=True)
-    
-    # Status
-    is_active = Column(Boolean, nullable=False, default=True, index=True)
-    
-    # Timestamps
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
-    
-    # Relationships
-    deadlines = relationship("Deadline", back_populates="client", cascade="all, delete-orphan")
-    contacts = relationship("Contact", back_populates="client", cascade="all, delete-orphan")
-    
-    # Check Constraints
-    __table_args__ = (
-        CheckConstraint('length(inn) IN (10, 12)', name='check_inn_length'),
-        Index('ix_clients_active_name', 'is_active', 'name'),
-    )
-    
-    def __repr__(self):
-        return f"<Client(id={self.id}, name='{self.name}', inn='{self.inn}')>"
-    
-    def to_dict(self):
-        """Convert model instance to dictionary"""
-        return {
-            'id': self.id,
-            'name': self.name,
             'inn': self.inn,
-            'contact_person': self.contact_person,
+            'company_name': self.company_name,
             'phone': self.phone,
-            'email': self.email,
             'address': self.address,
             'notes': self.notes,
+            'telegram_id': self.telegram_id,
+            'telegram_username': self.telegram_username,
+            'registration_code': self.registration_code,
+            'code_expires_at': self.code_expires_at.isoformat() if self.code_expires_at else None,
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'notification_days': self.notification_days,
+            'notifications_enabled': self.notifications_enabled,
             'is_active': self.is_active,
+            'registered_at': self.registered_at.isoformat() if self.registered_at else None,
+            'last_interaction': self.last_interaction.isoformat() if self.last_interaction else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+# ============================================
+# DEPRECATED MODELS (Replaced by unified User model)
+# Kept for reference during migration, will be removed after completion
+# ============================================
+
+# class Client(Base):
+#     Client organizations using cash register services
+#     
+#     Attributes:
+#         id: Unique client identifier
+#         name: Client organization name (unique)
+#         inn: Tax identification number (10 or 12 digits, unique)
+#         contact_person: Primary contact person name
+#         phone: Contact phone number
+#         email: Contact email address
+#         address: Physical address
+#         notes: Additional notes about client
+#         is_active: Client active status
+#         created_at: Record creation timestamp
+#         updated_at: Last update timestamp
+#     
+#     Relationships:
+#         deadlines: Collection of all deadlines for this client (CASCADE DELETE)
+#         contacts: Collection of Telegram contacts for this client (CASCADE DELETE)
+# End of deprecated Client model
 
 
 class DeadlineType(Base):
@@ -190,16 +266,17 @@ class Deadline(Base):
     
     Attributes:
         id: Unique deadline identifier
-        client_id: Reference to clients.id
+        user_id: Reference to users.id (replaces client_id)
+        client_id: Legacy reference to clients.id (kept for migration, will be removed)
         deadline_type_id: Reference to deadline_types.id
         expiration_date: Service expiration date
-        status: Deadline status (active, expired, renewed)
+        status: Deadline status (active, expired, cancelled)
         notes: Additional notes
         created_at: Record creation timestamp
         updated_at: Last update timestamp
     
     Relationships:
-        client: Reference to parent client record
+        user: Reference to parent user record (client)
         deadline_type: Reference to service type
         notification_logs: Collection of notifications for this deadline (CASCADE DELETE)
     """
@@ -209,7 +286,8 @@ class Deadline(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     
     # Foreign Keys
-    client_id = Column(Integer, ForeignKey('clients.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
+    client_id = Column(Integer, nullable=True, index=True)  # Legacy, will be removed after full migration
     deadline_type_id = Column(Integer, ForeignKey('deadline_types.id', ondelete='RESTRICT'), nullable=False, index=True)
     
     # Deadline Information
@@ -222,24 +300,25 @@ class Deadline(Base):
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Relationships
-    client = relationship("Client", back_populates="deadlines")
+    user = relationship("User", back_populates="deadlines")
     deadline_type = relationship("DeadlineType", back_populates="deadlines")
     notification_logs = relationship("NotificationLog", back_populates="deadline", cascade="all, delete-orphan")
     
     # Composite Indexes
     __table_args__ = (
         Index('ix_deadlines_status_expiration', 'status', 'expiration_date'),
-        Index('ix_deadlines_client_expiration', 'client_id', 'expiration_date'),
+        Index('ix_deadlines_user_expiration', 'user_id', 'expiration_date'),
     )
     
     def __repr__(self):
-        return f"<Deadline(id={self.id}, client_id={self.client_id}, expiration_date='{self.expiration_date}', status='{self.status}')>"
+        return f"<Deadline(id={self.id}, user_id={self.user_id}, expiration_date='{self.expiration_date}', status='{self.status}')>"
     
     def to_dict(self):
         """Convert model instance to dictionary"""
         return {
             'id': self.id,
-            'client_id': self.client_id,
+            'user_id': self.user_id,
+            'client_id': self.client_id,  # Keep for backward compatibility during migration
             'deadline_type_id': self.deadline_type_id,
             'expiration_date': self.expiration_date.isoformat() if self.expiration_date else None,
             'status': self.status,
@@ -271,70 +350,24 @@ class Deadline(Base):
         else:
             return 'green'
 
-
-class Contact(Base):
-    """
-    Telegram contact information for notification delivery
-    
-    Attributes:
-        id: Unique contact identifier
-        client_id: Reference to clients.id
-        telegram_id: Telegram user ID (unique)
-        telegram_username: Telegram username
-        first_name: User's first name from Telegram
-        last_name: User's last name from Telegram
-        notifications_enabled: Notification preference
-        registered_at: Registration timestamp
-        last_interaction: Last bot interaction timestamp
-    
-    Relationships:
-        client: Reference to parent client record
-    """
-    __tablename__ = "contacts"
-    
-    # Primary Key
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    
-    # Foreign Key
-    client_id = Column(Integer, ForeignKey('clients.id', ondelete='CASCADE'), nullable=False, index=True)
-    
-    # Telegram Information
-    telegram_id = Column(String(50), nullable=False, unique=True, index=True)
-    telegram_username = Column(String(100), nullable=True)
-    first_name = Column(String(100), nullable=True)
-    last_name = Column(String(100), nullable=True)
-    
-    # Notification Settings
-    notifications_enabled = Column(Boolean, nullable=False, default=True, index=True)
-    
-    # Timestamps
-    registered_at = Column(DateTime, nullable=False, server_default=func.now())
-    last_interaction = Column(DateTime, nullable=True)
-    
-    # Relationships
-    client = relationship("Client", back_populates="contacts")
-    
-    # Composite Index
-    __table_args__ = (
-        Index('ix_contacts_client_enabled', 'client_id', 'notifications_enabled'),
-    )
-    
-    def __repr__(self):
-        return f"<Contact(id={self.id}, telegram_id='{self.telegram_id}', client_id={self.client_id})>"
-    
-    def to_dict(self):
-        """Convert model instance to dictionary"""
-        return {
-            'id': self.id,
-            'client_id': self.client_id,
-            'telegram_id': self.telegram_id,
-            'telegram_username': self.telegram_username,
-            'first_name': self.first_name,
-            'last_name': self.last_name,
-            'notifications_enabled': self.notifications_enabled,
-            'registered_at': self.registered_at.isoformat() if self.registered_at else None,
-            'last_interaction': self.last_interaction.isoformat() if self.last_interaction else None
-        }
+# DEPRECATED MODEL: Contact - replaced by User model with role='client'
+# Kept for reference during migration phase
+#
+# class Contact(Base):
+#     Telegram contact information for notification delivery
+#     
+#     Attributes:
+#         id: Unique contact identifier
+#         client_id: Reference to clients.id
+#         telegram_id: Telegram user ID (unique)
+#         telegram_username: Telegram username
+#         first_name: User's first name from Telegram
+#         last_name: User's last name from Telegram
+#         notifications_enabled: Notification preference
+#         registered_at: Registration timestamp
+#         last_interaction: Last bot interaction timestamp
+#
+# End of deprecated Contact model
 
 
 class NotificationLog(Base):

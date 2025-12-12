@@ -7,15 +7,19 @@ It configures FastAPI app, routers, middleware, and CORS.
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 import time
 import logging
+import os
 
 from backend.config import settings
 from backend.database import check_db_connection
 
 # Import API routers
-from backend.api import auth, clients, deadlines, dashboard, deadline_types, contacts
+from backend.api import auth, users, deadlines, dashboard, deadline_types
+# Deprecated routers (kept for backward compatibility during migration)
+# from backend.api import clients, contacts
 
 
 # ============================================
@@ -104,8 +108,8 @@ async def log_requests(request: Request, call_next):
 # Authentication
 app.include_router(auth.router)
 
-# Clients Management
-app.include_router(clients.router)
+# Users Management (replaces clients and contacts)
+app.include_router(users.router)
 
 # Deadlines Management
 app.include_router(deadlines.router)
@@ -116,8 +120,23 @@ app.include_router(dashboard.router)
 # Deadline Types
 app.include_router(deadline_types.router)
 
-# Contacts Management
-app.include_router(contacts.router)
+# DEPRECATED: Old routers (uncomment if needed for backward compatibility)
+# app.include_router(clients.router)
+# app.include_router(contacts.router)
+
+
+# ============================================
+# Static Files
+# ============================================
+
+# Путь к статическим файлам
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    logger.info(f"📁 Static files mounted: {STATIC_DIR}")
+else:
+    logger.warning(f"⚠️ Static directory not found: {STATIC_DIR}")
 
 
 # ============================================
@@ -127,18 +146,9 @@ app.include_router(contacts.router)
 @app.get("/", tags=["System"])
 async def root():
     """
-    API root endpoint - provides basic API information
-    
-    Returns service name, version, and links to documentation
+    Root endpoint - redirect to login page
     """
-    return {
-        "name": "KKT Services Expiration Management API",
-        "version": "1.0.0",
-        "status": "operational",
-        "docs": "/docs",
-        "redoc": "/redoc",
-        "openapi": "/openapi.json"
-    }
+    return RedirectResponse(url="/static/login.html")
 
 
 @app.get("/health", tags=["System"])

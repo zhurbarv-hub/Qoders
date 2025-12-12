@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from typing import List
 
 from backend.database import get_db
-from backend.models import Client, Deadline, DeadlineType, User
+from backend.models import User, Deadline, DeadlineType
 from backend.schemas import DashboardSummary, StatusBreakdown, UrgentDeadline
 from backend.dependencies import get_current_active_user
 
@@ -30,8 +30,8 @@ async def get_dashboard_summary(
     Retrieve dashboard statistics and urgent deadlines
     
     **Statistics Calculated:**
-    - total_clients: Count of all clients
-    - active_clients: Count of clients with is_active=True
+    - total_clients: Count of all users with role='client'
+    - active_clients: Count of active client users
     - total_deadlines: Count of all deadlines
     - status_breakdown:
       - green: Deadlines > 14 days until expiration
@@ -51,13 +51,17 @@ async def get_dashboard_summary(
     yellow_threshold = today + timedelta(days=14)
     red_threshold = today + timedelta(days=7)
     
-    # 1. Total Clients
-    total_clients = db.query(func.count(Client.id)).scalar()
+    # 1. Total Clients (users with role='client')
+    total_clients = db.query(func.count(User.id))\
+                      .filter(User.role == 'client')\
+                      .scalar()
     
     # 2. Active Clients
-    active_clients = db.query(func.count(Client.id))\
-                       .filter(Client.is_active == True)\
-                       .scalar()
+    active_clients = db.query(func.count(User.id))\
+                       .filter(
+                           User.role == 'client',
+                           User.is_active == True
+                       ).scalar()
     
     # 3. Total Deadlines
     total_deadlines = db.query(func.count(Deadline.id)).scalar()
@@ -99,11 +103,11 @@ async def get_dashboard_summary(
     
     # 5. Urgent Deadlines (Top 10 expiring soonest)
     urgent_deadlines_query = db.query(
-        Client.name.label('client_name'),
+        User.company_name.label('client_name'),
         DeadlineType.type_name.label('deadline_type'),
         Deadline.expiration_date,
         func.julianday(Deadline.expiration_date) - func.julianday(today)
-    ).join(Client)\
+    ).join(User)\
      .join(DeadlineType)\
      .filter(
          Deadline.status == 'active',
@@ -115,8 +119,10 @@ async def get_dashboard_summary(
     urgent_deadlines = []
     for row in urgent_deadlines_query:
         days_remaining = int((row.expiration_date - today).days)
+        # Use company_name, fallback to user's full_name if needed
+        client_display = row.client_name if row.client_name else "Клиент"
         urgent_deadlines.append(UrgentDeadline(
-            client_name=row.client_name,
+            client_name=client_display,
             deadline_type=row.deadline_type,
             expiration_date=row.expiration_date,
             days_remaining=days_remaining
@@ -183,7 +189,7 @@ async def get_stats_by_client(
     
     **Response:**
     Array of top clients:
-    - client_name: Client organization name
+    - client_name: Client organization name (or full name)
     - deadline_count: Number of active deadlines
     - urgent_count: Number of urgent deadlines (< 14 days)
     
@@ -194,22 +200,26 @@ async def get_stats_by_client(
     urgent_threshold = today + timedelta(days=14)
     
     stats = db.query(
-        Client.name,
+        User.company_name,
+        User.full_name,
         func.count(Deadline.id).label('deadline_count'),
         func.sum(case((Deadline.expiration_date < urgent_threshold, 1), else_=0)).label('urgent_count')
     ).join(Deadline)\
      .filter(
-         Client.is_active == True,
+         User.role == 'client',
+         User.is_active == True,
          Deadline.status == 'active'
-     ).group_by(Client.id, Client.name)\
+     ).group_by(User.id, User.company_name, User.full_name)\
      .order_by(func.count(Deadline.id).desc())\
      .limit(10)\
      .all()
     
     result = []
     for stat in stats:
+        # Use company_name if available, otherwise full_name
+        display_name = stat.company_name if stat.company_name else stat.full_name
         result.append({
-            'client_name': stat.name,
+            'client_name': display_name,
             'deadline_count': stat.deadline_count or 0,
             'urgent_count': int(stat.urgent_count or 0)
         })

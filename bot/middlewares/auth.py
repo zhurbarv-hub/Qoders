@@ -6,7 +6,7 @@
 
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
-from typing import Any, Dict, Callable, Awaitable
+from typing import Any, Dict, Callable, Awaitable, List
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend import models
@@ -99,11 +99,11 @@ class AuthMiddleware(BaseMiddleware):
             
             # ОТЛАДКА: Выводим значения для сравнения
             logger.info(f"🔍 Проверка админа: user_id={telegram_id} (тип: {type(telegram_id)})")
-            logger.info(f"🔍 Admin из конфига: admin_id={config['telegram_admin_id']} (тип: {type(config['telegram_admin_id'])})")
-            logger.info(f"🔍 Сравнение: {telegram_id} == {config['telegram_admin_id']} = {telegram_id == config['telegram_admin_id']}")
-            
+            logger.info(f"🔍 Админы из конфига: admin_ids={config['telegram_admin_ids']}")
+            logger.info(f"🔍 Проверка: {telegram_id} in {config['telegram_admin_ids']} = {telegram_id in config['telegram_admin_ids']}")
+
             # Проверяем, является ли пользователь администратором
-            if telegram_id == config['telegram_admin_id']:
+            if telegram_id in config['telegram_admin_ids']:
                 logger.info(f"✅ Пользователь {telegram_id} является администратором")
                 return ('admin', None)
             
@@ -131,18 +131,18 @@ class AuthMiddleware(BaseMiddleware):
             return ('unknown', None)
 
 
-def is_admin(user_id: int, admin_id: int) -> bool:
+def is_admin(user_id: int, admin_ids: List[int]) -> bool:
     """
     Проверка, является ли пользователь администратором
     
     Args:
         user_id (int): Telegram ID пользователя
-        admin_id (int): Telegram ID администратора
+        admin_ids (List[int]): Список Telegram ID администраторов
         
     Returns:
         bool: True если пользователь является администратором
     """
-    return user_id == admin_id
+    return user_id in admin_ids
 
 
 def get_client_by_telegram_id(telegram_id: int) -> dict:

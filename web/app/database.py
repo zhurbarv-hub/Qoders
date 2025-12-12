@@ -9,7 +9,7 @@ import os
 
 # Путь к базе данных (общая с Telegram ботом)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATABASE_PATH = os.path.join(BASE_DIR, "kkt_system.db")
+DATABASE_PATH = os.path.join(BASE_DIR, "database", "kkt_services.db")
 
 # URL подключения к SQLite
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"

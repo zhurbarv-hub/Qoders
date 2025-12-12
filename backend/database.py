@@ -4,7 +4,7 @@
 Настройка SQLAlchemy и создание сессий для работы с БД
 """
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.engine import Engine
 from backend.config import settings
@@ -107,7 +107,7 @@ def check_db_connection():
     """
     try:
         with engine.connect() as connection:
-            result = connection.execute("SELECT 1")
+            result = connection.execute(text("SELECT 1"))
             result.fetchone()
         return True
     except Exception as e:
@@ -158,7 +158,7 @@ if __name__ == "__main__":
         try:
             with engine.connect() as conn:
                 result = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+                    text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
                 )
                 tables = result.fetchall()
                 
@@ -166,7 +166,7 @@ if __name__ == "__main__":
                     print(f"\n✓ Найдено таблиц: {len(tables)}")
                     for table in tables:
                         # Подсчёт записей
-                        count_result = conn.execute(f"SELECT COUNT(*) FROM {table[0]}")
+                        count_result = conn.execute(text(f"SELECT COUNT(*) FROM {table[0]}"))
                         count = count_result.fetchone()[0]
                         print(f"  • {table[0]:<25} ({count} записей)")
                 else:

@@ -70,20 +70,44 @@ KKT/
 ### 1. Установка зависимостей
 
 ```bash
+# Создать виртуальное окружение
+python -m venv venv_web
+
+# Активировать (для Windows)
+venv_web\Scripts\activate
+
+# Установить зависимости
 pip install -r requirements.txt
 ```
 
-(SQLite3 уже включен в стандартную библиотеку Python)
-
-### 2. Запуск демонстрации
+### 2. Инициализация базы данных
 
 ```bash
-python example_usage.py
+# Создать таблицы и тестовые данные
+venv_web\Scripts\python web\init_web_db.py
+
+# Добавить тестовых клиентов (опционально)
+venv_web\Scripts\python web\add_test_data.py
+
+# Проверить содержимое БД
+venv_web\Scripts\python check_db.py
 ```
 
-Это запустит полную демонстрацию возможностей системы.
+### 3. Запуск веб-сервера
 
-### 3. Использование в коде
+```bash
+# Использовать готовый скрипт
+start_web.bat
+
+# Или запустить вручную
+venv_web\Scripts\python -m uvicorn web.app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Откройте браузер: **http://localhost:8000**
+
+**Учётные данные по умолчанию:**
+- Логин: `admin`
+- Пароль: `admin123`
 
 ```python
 from service_tracker import ServiceTracker

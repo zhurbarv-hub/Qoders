@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 """
 Модуль конфигурации приложения
-Загружает настройки из .env файла и предоставляет доступ через глобальный объект settings
+Использует Pydantic Settings для валидации и управления переменными окружения
 """
 
-from pydantic_settings import BaseSettings
-from pydantic import Field
-from typing import List
 import os
+from typing import List
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
     """
-    Класс настроек приложения
-    Автоматически загружает значения из переменных окружения и .env файла
+    Настройки приложения из переменных окружения
+    Автоматически загружает из .env файла
     """
     
     # ============================================
@@ -20,23 +21,24 @@ class Settings(BaseSettings):
     # ============================================
     database_path: str = Field(
         default="database/kkt_services.db",
-        description="Путь к SQLite базе данных"
+        description="Путь к файлу базы данных SQLite"
     )
     
     # ============================================
-    # JWT Authentication
+    # JWT Configuration
     # ============================================
     jwt_secret_key: str = Field(
-        min_length=32,
         description="Секретный ключ для подписи JWT токенов (минимум 32 символа)"
     )
+    
     jwt_algorithm: str = Field(
         default="HS256",
         description="Алгоритм шифрования JWT"
     )
+    
     jwt_expiration_hours: int = Field(
         default=24,
-        description="Время жизни JWT токена в часах"
+        description="Срок действия JWT токена (в часах)"
     )
     
     # ============================================
@@ -46,8 +48,9 @@ class Settings(BaseSettings):
         description="Токен Telegram бота от @BotFather"
     )
     
-    telegram_admin_id: int = Field(
-        description="Telegram ID администратора для полного доступа"
+    telegram_admin_ids: str = Field(
+        default="",
+        description="Telegram ID администраторов (через запятую)"
     )
     
     # ============================================
@@ -182,6 +185,22 @@ class Settings(BaseSettings):
         """
         return [int(day.strip()) for day in self.notification_days.split(",")]
     
+    @property
+    def telegram_admin_ids_list(self) -> List[int]:
+        """
+        Преобразование строки ID администраторов в список целых чисел
+        
+        Returns:
+            List[int]: Список Telegram ID администраторов
+        """
+        if not self.telegram_admin_ids:
+            return []
+        return [
+            int(admin_id.strip()) 
+            for admin_id in self.telegram_admin_ids.split(",") 
+            if admin_id.strip()
+        ]
+    
     class Config:
         """Конфигурация Pydantic"""
         env_file = ".env"
@@ -201,7 +220,7 @@ except Exception as e:
     print("   2. Все обязательные переменные заполнены")
     print("   3. JWT_SECRET_KEY имеет минимум 32 символа")
     print("   4. TELEGRAM_BOT_TOKEN получен от @BotFather")
-    print("   5. TELEGRAM_ADMIN_ID - ваш Telegram ID")
+    print("   5. TELEGRAM_ADMIN_IDS - Telegram ID администраторов (через запятую)")
     print("\n💡 Запустите: python generate_env.py")
     raise
 
@@ -225,7 +244,7 @@ if __name__ == "__main__":
     
     print(f"\n🤖 Telegram Bot:")
     print(f"   Token: {settings.telegram_bot_token[:20]}...")
-    print(f"   Admin ID: {settings.telegram_admin_id}")
+    print(f"   Admin IDs: {settings.telegram_admin_ids_list}")
     
     print(f"\n🔔 Notifications:")
     print(f"   Check Time: {settings.notification_check_time}")
@@ -239,19 +258,14 @@ if __name__ == "__main__":
     print(f"   Port: {settings.api_port}")
     print(f"   Reload: {settings.api_reload}")
     
-    print(f"\n📝 Logging:")
-    print(f"   Level: {settings.log_level}")
-    print(f"   File: {settings.log_file}")
-    
-    print(f"\n🔗 CORS:")
-    print(f"   Origins: {settings.cors_origins_list}")
-    
-    print(f"\n🔌 Web API Integration:")
+    print(f"\n🌐 Web API Integration:")
     print(f"   Base URL: {settings.web_api_base_url}")
     print(f"   Timeout: {settings.web_api_timeout}s")
-    print(f"   Bot Username: {settings.bot_api_username}")
-    print(f"   Token Refresh: {settings.bot_token_refresh_interval}s")
+    print(f"   Username: {settings.bot_api_username}")
+    
+    print(f"\n📊 CORS:")
+    print(f"   Origins: {settings.cors_origins_list}")
     
     print("\n" + "=" * 60)
-    print("✅ КОНФИГУРАЦИЯ ЗАГРУЖЕНА УСПЕШНО")
+    print("✅ Конфигурация загружена успешно")
     print("=" * 60)

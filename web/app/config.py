@@ -14,7 +14,7 @@ class WebSettings:
     access_token_expire_minutes: int = 480  # 8 часов
     
     # База данных
-    database_url: str = "sqlite:///./kkt_system.db"
+    database_url: str = "sqlite:///database/kkt_services.db"
     
     # Сервер
     host: str = "0.0.0.0"
@@ -22,7 +22,12 @@ class WebSettings:
     debug: bool = True
     
     # CORS
-    cors_origins: List[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
+    cors_origins: List[str] = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",  # Vite dev server (CoreUI admin)
+        "http://127.0.0.1:3000"
+    ]
 
 
 # Глобальный экземпляр настроек

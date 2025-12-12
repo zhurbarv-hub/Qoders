@@ -1,199 +1,246 @@
+# -*- coding: utf-8 -*-
 """
-Contact Management API Endpoints for KKT Services Expiration Management System
-
-This module provides endpoints for Telegram contact management:
-- GET /api/clients/{client_id}/contacts - List client contacts
-- POST /api/clients/{client_id}/contacts - Add contact manually
-- PUT /api/contacts/{contact_id} - Update contact
-- DELETE /api/contacts/{contact_id} - Remove contact
+Contact Management API Endpoints
+CRUD операции для управления контактами клиентов с Telegram уведомлениями
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import or_
+from typing import List, Optional
+from datetime import datetime, timedelta
+import secrets
+import string
 
 from backend.database import get_db
-from backend.models import Contact, Client, User
+from backend.models import Contact, Client
 from backend.schemas import (
     ContactCreate,
     ContactUpdate,
     ContactResponse,
+    ContactListResponse,
     MessageResponse
 )
-from backend.dependencies import get_current_active_user
-
+from backend.dependencies import (
+    get_current_active_user,
+    get_pagination_params,
+    PaginationParams
+)
 
 # Create API router
-router = APIRouter(prefix="/api", tags=["Contacts"])
+router = APIRouter(prefix="/api/contacts", tags=["Contacts"])
 
 
-@router.get("/clients/{client_id}/contacts", response_model=List[ContactResponse], summary="List Client Contacts")
-async def list_client_contacts(
-    client_id: int,
-    current_user: User = Depends(get_current_active_user),
+def generate_registration_code(length: int = 8) -> str:
+    """
+    Генерация случайного кода регистрации
+    
+    Args:
+        length (int): Длина кода
+        
+    Returns:
+        str: Случайный код из букв и цифр (например: A7K9M2P5)
+    """
+    alphabet = string.ascii_uppercase + string.digits
+    # Исключаем похожие символы: O,0,I,1,L
+    alphabet = alphabet.replace('O', '').replace('I', '').replace('L', '').replace('0', '').replace('1', '')
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+@router.get("", response_model=ContactListResponse, summary="Список контактов")
+async def list_contacts(
+    pagination: PaginationParams = Depends(get_pagination_params),
+    client_id: Optional[int] = None,
+    registered_only: bool = False,
+    current_user: dict = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve all Telegram contacts for specific client
+    Получить список всех контактов с пагинацией
     
-    **Path Parameters:**
-    - client_id: Client ID
+    **Query Parameters:**
+    - page: Номер страницы (default: 1)
+    - limit: Контактов на странице (default: 50, max: 100)
+    - client_id: Фильтр по клиенту (optional)
+    - registered_only: Показать только зарегистрированные в Telegram (default: false)
     
     **Response:**
-    - Array of contact objects with:
-      - Telegram ID and username
-      - First and last name from Telegram
-      - Notification enabled status
-      - Registration and last interaction timestamps
-    
-    **Errors:**
-    - 404 Not Found: Client does not exist
+    - total: Общее количество контактов
+    - page: Текущая страница
+    - limit: Контактов на странице
+    - contacts: Массив контактов
     
     **Authentication:**
-    Requires valid JWT token
+    Требуется валидный JWT токен
     """
-    # Verify client exists
-    client = db.query(Client).filter(Client.id == client_id).first()
+    # Build base query
+    query = db.query(Contact)
     
-    if not client:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client with id {client_id} not found"
-        )
+    # Apply client filter
+    if client_id:
+        query = query.filter(Contact.client_id == client_id)
     
-    # Get all contacts for this client
-    contacts = db.query(Contact)\
-                 .filter(Contact.client_id == client_id)\
-                 .order_by(Contact.registered_at.desc())\
-                 .all()
+    # Apply registered filter
+    if registered_only:
+        query = query.filter(Contact.telegram_id.isnot(None))
     
-    return [ContactResponse.model_validate(contact) for contact in contacts]
+    # Get total count
+    total = query.count()
+    
+    # Apply pagination and sorting
+    contacts = query.order_by(Contact.contact_name)\
+                   .offset(pagination.offset)\
+                   .limit(pagination.limit)\
+                   .all()
+    
+    # Convert to response schema
+    contact_responses = [ContactResponse.model_validate(contact) for contact in contacts]
+    
+    return ContactListResponse(
+        total=total,
+        page=pagination.page,
+        limit=pagination.limit,
+        contacts=contact_responses
+    )
 
 
-@router.post("/clients/{client_id}/contacts", response_model=MessageResponse, status_code=status.HTTP_201_CREATED, summary="Add Contact Manually")
-async def add_contact(
-    client_id: int,
-    contact_data: ContactCreate,
-    current_user: User = Depends(get_current_active_user),
+@router.get("/{contact_id}", response_model=ContactResponse, summary="Получить контакт")
+async def get_contact(
+    contact_id: int,
+    current_user: dict = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Manually add Telegram contact for client
-    
-    This is an alternative to bot /start registration.
-    Administrators can manually link Telegram users to clients.
+    Получить контакт по ID
     
     **Path Parameters:**
-    - client_id: Client ID to link contact to
+    - contact_id: ID контакта
+    
+    **Response:**
+    - Данные контакта со всеми полями
+    
+    **Errors:**
+    - 404 Not Found: Контакт не найден
+    
+    **Authentication:**
+    Требуется валидный JWT токен
+    """
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Контакт с ID {contact_id} не найден"
+        )
+    
+    return ContactResponse.model_validate(contact)
+
+
+@router.post("", response_model=MessageResponse, status_code=status.HTTP_201_CREATED, summary="Создать контакт")
+async def create_contact(
+    contact_data: ContactCreate,
+    generate_code: bool = True,
+    current_user: dict = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Создать новый контакт клиента
     
     **Request Body:**
-    - telegram_id: Telegram user ID (required, numeric, unique)
-    - telegram_username: Telegram username (optional)
-    - first_name: User's first name (optional)
-    - last_name: User's last name (optional)
+    - client_id: ID клиента (required)
+    - contact_name: ФИО контактного лица (required)
+    - phone: Телефон (optional, формат +7XXXXXXXXXX)
+    - email: Email (optional)
+    - notification_days: Дни уведомлений (default: "14,7,3")
+    - notifications_enabled: Включены ли уведомления (default: true)
+    - notes: Примечания (optional)
     
-    **Validation:**
-    - telegram_id must be unique (one Telegram user per client)
-    - telegram_id must be numeric string
-    - client_id must reference existing client
+    **Query Parameters:**
+    - generate_code: Сгенерировать код регистрации (default: true)
     
     **Response:**
-    - message: Success message
-    - id: New contact ID
+    - message: Сообщение об успехе
+    - id: ID созданного контакта
     
     **Errors:**
-    - 404 Not Found: Client does not exist
-    - 409 Conflict: Telegram ID already registered
+    - 400 Bad Request: Ошибки валидации
+    - 404 Not Found: Клиент не существует
     
     **Authentication:**
-    Requires valid JWT token
+    Требуется валидный JWT токен
     """
-    # Verify client exists
-    client = db.query(Client).filter(Client.id == client_id).first()
-    
+    # Проверяем существование клиента
+    client = db.query(Client).filter(Client.id == contact_data.client_id).first()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client with id {client_id} not found"
+            detail=f"Клиент с ID {contact_data.client_id} не найден"
         )
     
-    # Check for duplicate Telegram ID
-    existing_contact = db.query(Contact).filter(
-        Contact.telegram_id == contact_data.telegram_id
-    ).first()
+    # Создаём новый контакт
+    new_contact = Contact(**contact_data.model_dump())
     
-    if existing_contact:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Telegram ID {contact_data.telegram_id} is already registered to another client"
-        )
-    
-    # Create new contact
-    new_contact = Contact(
-        client_id=client_id,
-        telegram_id=contact_data.telegram_id,
-        telegram_username=contact_data.telegram_username,
-        first_name=contact_data.first_name,
-        last_name=contact_data.last_name,
-        notifications_enabled=True
-    )
+    # Генерируем код регистрации если требуется
+    if generate_code:
+        new_contact.registration_code = generate_registration_code()
+        new_contact.code_expires_at = datetime.now() + timedelta(hours=24)
     
     db.add(new_contact)
     db.commit()
     db.refresh(new_contact)
     
     return MessageResponse(
-        message=f"Contact added successfully for client '{client.name}'",
+        message=f"Контакт '{new_contact.contact_name}' успешно создан. "
+                f"Код регистрации: {new_contact.registration_code}" if generate_code else f"Контакт '{new_contact.contact_name}' успешно создан",
         id=new_contact.id
     )
 
 
-@router.put("/contacts/{contact_id}", response_model=MessageResponse, summary="Update Contact")
+@router.put("/{contact_id}", response_model=MessageResponse, summary="Обновить контакт")
 async def update_contact(
     contact_id: int,
     contact_data: ContactUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: dict = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Update contact information
+    Обновить данные контакта
     
     **Path Parameters:**
-    - contact_id: Contact ID to update
+    - contact_id: ID контакта
     
     **Request Body:**
-    All fields optional:
-    - telegram_username: Update username
-    - first_name: Update first name
-    - last_name: Update last name
-    - notifications_enabled: Toggle notifications on/off
-    
-    **Use Cases:**
-    - Update user profile information synced from Telegram
-    - Enable/disable notifications for specific contact
-    - Update username when user changes it in Telegram
+    Все поля опциональны:
+    - contact_name: ФИО
+    - phone: Телефон
+    - email: Email
+    - notification_days: Дни уведомлений
+    - notifications_enabled: Включены ли уведомления
+    - notes: Примечания
     
     **Response:**
-    - message: Success message
-    - id: Updated contact ID
+    - message: Сообщение об успехе
+    - id: ID обновлённого контакта
     
     **Errors:**
-    - 404 Not Found: Contact does not exist
+    - 404 Not Found: Контакт не существует
     
     **Authentication:**
-    Requires valid JWT token
+    Требуется валидный JWT токен
     """
-    # Fetch contact
+    # Fetch existing contact
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Contact with id {contact_id} not found"
+            detail=f"Контакт с ID {contact_id} не найден"
         )
     
-    # Update fields
+    # Prepare update data (exclude unset fields)
     update_data = contact_data.model_dump(exclude_unset=True)
+    
+    # Update contact fields
     for field, value in update_data.items():
         setattr(contact, field, value)
     
@@ -201,36 +248,34 @@ async def update_contact(
     db.refresh(contact)
     
     return MessageResponse(
-        message="Contact updated successfully",
+        message=f"Контакт '{contact.contact_name}' успешно обновлён",
         id=contact.id
     )
 
 
-@router.delete("/contacts/{contact_id}", response_model=MessageResponse, summary="Remove Contact")
+@router.delete("/{contact_id}", response_model=MessageResponse, summary="Удалить контакт")
 async def delete_contact(
     contact_id: int,
-    current_user: User = Depends(get_current_active_user),
+    current_user: dict = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Remove Telegram contact
+    Удалить контакт (hard delete)
     
     **Path Parameters:**
-    - contact_id: Contact ID to remove
-    
-    **Behavior:**
-    - Permanently removes contact from database
-    - User will no longer receive notifications
-    - User can re-register via bot /start command
+    - contact_id: ID контакта
     
     **Response:**
-    - message: Success message
+    - message: Сообщение об успехе
     
     **Errors:**
-    - 404 Not Found: Contact does not exist
+    - 404 Not Found: Контакт не существует
+    
+    **Note:**
+    Полное удаление контакта из базы данных
     
     **Authentication:**
-    Requires valid JWT token
+    Требуется валидный JWT токен
     """
     # Fetch contact
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
@@ -238,67 +283,70 @@ async def delete_contact(
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Contact with id {contact_id} not found"
+            detail=f"Контакт с ID {contact_id} не найден"
         )
     
-    # Store info for response
-    telegram_id = contact.telegram_id
-    client_name = contact.client.name if contact.client else "Unknown"
+    contact_name = contact.contact_name
     
     # Delete contact
     db.delete(contact)
     db.commit()
     
     return MessageResponse(
-        message=f"Contact removed: Telegram ID {telegram_id} from {client_name}"
+        message=f"Контакт '{contact_name}' успешно удалён"
     )
 
 
-@router.post("/contacts/{contact_id}/toggle-notifications", response_model=MessageResponse, summary="Toggle Notifications")
-async def toggle_notifications(
+@router.post("/{contact_id}/regenerate-code", response_model=MessageResponse, summary="Перегенерировать код")
+async def regenerate_registration_code(
     contact_id: int,
-    current_user: User = Depends(get_current_active_user),
+    current_user: dict = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Toggle notification enabled status for contact
+    Сгенерировать новый код регистрации для контакта
     
     **Path Parameters:**
-    - contact_id: Contact ID
-    
-    **Behavior:**
-    - Toggles notifications_enabled between True and False
-    - If True → False: Contact stops receiving notifications
-    - If False → True: Contact resumes receiving notifications
+    - contact_id: ID контакта
     
     **Response:**
-    - message: Success message with new status
-    - id: Contact ID
+    - message: Сообщение с новым кодом
+    - id: ID контакта
     
     **Errors:**
-    - 404 Not Found: Contact does not exist
+    - 404 Not Found: Контакт не существует
+    - 400 Bad Request: Контакт уже зарегистрирован
+    
+    **Note:**
+    Код действителен 24 часа с момента генерации
     
     **Authentication:**
-    Requires valid JWT token
+    Требуется валидный JWT токен
     """
-    # Fetch contact
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Contact with id {contact_id} not found"
+            detail=f"Контакт с ID {contact_id} не найден"
         )
     
-    # Toggle notifications
-    contact.notifications_enabled = not contact.notifications_enabled
+    # Проверяем, не зарегистрирован ли уже
+    if contact.telegram_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Контакт уже зарегистрирован в Telegram (ID: {contact.telegram_id})"
+        )
+    
+    # Генерируем новый код
+    contact.registration_code = generate_registration_code()
+    contact.code_expires_at = datetime.now() + timedelta(hours=24)
     
     db.commit()
-    
-    status_text = "enabled" if contact.notifications_enabled else "disabled"
+    db.refresh(contact)
     
     return MessageResponse(
-        message=f"Notifications {status_text} for contact",
+        message=f"Новый код регистрации: {contact.registration_code} (действителен до {contact.code_expires_at.strftime('%d.%m.%Y %H:%M')})",
         id=contact.id
     )
 
@@ -313,11 +361,12 @@ if __name__ == "__main__":
     print("=" * 60)
     
     print("\nДоступные эндпоинты:")
-    print("  • GET /api/clients/{client_id}/contacts - Список контактов клиента")
-    print("  • POST /api/clients/{client_id}/contacts - Добавить контакт")
+    print("  • GET /api/contacts - Список контактов с пагинацией")
+    print("  • GET /api/contacts/{id} - Получить контакт по ID")
+    print("  • POST /api/contacts - Создать новый контакт")
     print("  • PUT /api/contacts/{id} - Обновить контакт")
     print("  • DELETE /api/contacts/{id} - Удалить контакт")
-    print("  • POST /api/contacts/{id}/toggle-notifications - Переключить уведомления")
+    print("  • POST /api/contacts/{id}/regenerate-code - Перегенерировать код")
     
     print("\n" + "=" * 60)
     print("✅ МОДУЛЬ ГОТОВ К ИСПОЛЬЗОВАНИЮ")

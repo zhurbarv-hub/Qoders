@@ -1,0 +1,142 @@
+/* Общие стили */
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+}
+
+/* Страница входа */
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+}
+
+.login-card {
+    width: 100%;
+    margin: 0 auto;
+}
+
+.login-form {
+    width: 100%;
+}
+
+.mdl-textfield {
+    width: 100%;
+}
+
+/* Скрыть красные надписи валидации MDL */
+.mdl-textfield__error {
+    display: none !important;
+}
+
+.mdl-textfield.is-invalid .mdl-textfield__error {
+    display: none !important;
+}
+
+.login-actions {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.login-actions button {
+    width: 100%;
+}
+
+.error-message {
+    color: #f44336;
+    background-color: #ffebee;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.login-footer {
+    text-align: center;
+    color: white;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+/* Spinner */
+#loadingSpinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+}
+
+/* Dashboard */
+.page-content {
+    padding: 20px;
+}
+
+.mdl-card {
+    margin-bottom: 20px;
+}
+
+/* Навигация */
+.mdl-layout__drawer .mdl-navigation__link {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    color: rgba(0, 0, 0, 0.87);
+    transition: background-color 0.2s;
+}
+
+.mdl-layout__drawer .mdl-navigation__link:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.mdl-layout__drawer .mdl-navigation__link.active {
+    background-color: rgba(103, 58, 183, 0.1);
+    color: #673ab7;
+    font-weight: 500;
+}
+
+.mdl-layout__drawer .mdl-navigation__link .material-icons {
+    margin-right: 16px;
+}
+
+/* Переключение видов */
+.view-content {
+    display: none;
+}
+
+.view-content.active {
+    display: block;
+}
+
+/* Таблицы */
+.mdl-data-table {
+    width: 100%;
+    border: none;
+}
+
+.mdl-data-table th,
+.mdl-data-table td {
+    padding: 12px;
+}
+
+/* Кнопки действий в таблицах */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.action-buttons button {
+    min-width: auto;
+    padding: 4px 8px;
+}

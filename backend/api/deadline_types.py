@@ -266,6 +266,49 @@ async def delete_deadline_type(
     )
 
 
+@router.patch("/{type_id}/activate", response_model=MessageResponse, summary="Activate Deadline Type")
+async def activate_deadline_type(
+    type_id: int,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Activate deadline type (admin only)
+    
+    **Path Parameters:**
+    - type_id: Type ID to activate
+    
+    **Behavior:**
+    - Sets is_active = True
+    - Type becomes available for new deadlines
+    
+    **Response:**
+    - message: Success message
+    
+    **Errors:**
+    - 404 Not Found: Type does not exist
+    
+    **Authentication:**
+    Requires admin role
+    """
+    deadline_type = db.query(DeadlineType).filter(DeadlineType.id == type_id).first()
+    
+    if not deadline_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Deadline type with id {type_id} not found"
+        )
+    
+    # Activate
+    deadline_type.is_active = True
+    
+    db.commit()
+    
+    return MessageResponse(
+        message=f"Deadline type '{deadline_type.type_name}' activated successfully"
+    )
+
+
 # ============================================
 # Testing
 # ============================================

@@ -12,12 +12,16 @@ from aiogram.client.default import DefaultBotProperties
 from bot.config import bot_config
 from bot.middlewares.auth import AuthMiddleware
 from bot.middlewares.logging import LoggingMiddleware
+
+# Импорт обработчиков
 from bot.handlers import common, admin, deadlines
-from bot.handlers import settings as settings_handler  # ← Переименовали
+from bot.handlers import settings as settings_handler
 from bot.handlers import search
+from bot.handlers import client_management, deadline_management, crud_conversations, export
+
 from bot.scheduler import setup_scheduler
 from backend.database import SessionLocal
-from backend.config import settings  # ← Конфигурация остаётся settings
+from backend.config import settings
 
 # Импорт API клиента
 from bot.services.token_manager import TokenManager
@@ -110,6 +114,10 @@ def setup_middlewares(dp: Dispatcher):
     # Он сам создаёт сессию БД внутри
     dp.message.middleware(AuthMiddleware())
     
+    # Аналогично для callback_query (для inline кнопок)
+    dp.callback_query.middleware(LoggingMiddleware())
+    dp.callback_query.middleware(AuthMiddleware())
+    
     logger.info("✅ Middleware зарегистрированы")
 
 
@@ -120,15 +128,37 @@ def register_handlers(dp: Dispatcher):
     Args:
         dp: Диспетчер
     """
-    # Порядок регистрации роутеров важен:
-    # более специфичные роутеры должны быть первыми
-    dp.include_router(admin.router)      # Административные команды
-    dp.include_router(search.router)     # Команды поиска
-    dp.include_router(deadlines.router)  # Команды работы с дедлайнами
-    dp.include_router(settings_handler.router)   # Команды настроек
-    dp.include_router(common.router)     # Общие команды (должны быть последними)
+    # ВАЖНО: Порядок регистрации имеет значение!
+    # Роутеры с КОМАНДАМИ должны быть ПЕРВЫМИ
+    # Роутеры с широкими обработчиками (F.text) - ПОСЛЕДНИМИ
     
-    logger.info("✅ Обработчики команд зарегистрированы")
+    # 1. Команды (обрабатываются первыми)
+    dp.include_router(common.router)                 # /start, /help
+    dp.include_router(admin.router)                  # /status, /check, /health
+    dp.include_router(deadlines.router)              # /list, /today, /week, /next
+    dp.include_router(search.router)                 # /search
+    dp.include_router(settings_handler.router)       # /settings
+    
+    # 2. CRUD команды (тоже команды, но создают диалоги)
+    # 2. CRUD команды (создают диалоги)
+    dp.include_router(client_management.router)      # /addclient, /editclient, /deleteclient
+    dp.include_router(deadline_management.router)    # /adddeadline, /editdeadline, /deletedeadline
+    
+    # 3. Обработчик диалогов
+    dp.include_router(crud_conversations.router)     # Обработка текстовых сообщений для всех CRUD
+    
+    dp.include_router(export.router)                 # /export + callbacks
+    
+    logger.info("✅ Обработчики команд зарегистрированы:")
+    logger.info("   - common (общие команды)")
+    logger.info("   - admin (статистика, проверки)")
+    logger.info("   - deadlines (просмотр дедлайнов)")
+    logger.info("   - search (поиск)")
+    logger.info("   - settings (настройки)")
+    logger.info("   - client_management (CRUD клиентов - команды)")
+    logger.info("   - deadline_management (CRUD дедлайнов - команды)")
+    logger.info("   - crud_conversations (обработка диалогов)")
+    logger.info("   - export (экспорт данных)")
 
 
 async def main():
@@ -171,6 +201,14 @@ async def main():
         logger.info(f"⏰ Время проверки: {bot_config.notification_check_time} ({bot_config.notification_timezone})")
         logger.info(f"📅 Дни уведомлений: {', '.join(map(str, bot_config.notification_days_list))}")
         logger.info(f"🔌 Web API: {settings.web_api_base_url}")
+        logger.info("=" * 60)
+        logger.info("📋 Доступные команды:")
+        logger.info("   Общие: /start, /help, /next, /list, /today, /week")
+        logger.info("   Поиск: /search")
+        logger.info("   Управление (админ): /addclient, /editclient, /deleteclient")
+        logger.info("   Дедлайны: /adddeadline, /editdeadline, /deletedeadline")
+        logger.info("   Экспорт: /export")
+        logger.info("   Система (админ): /status, /check, /health")
         logger.info("=" * 60)
         logger.info("✅ Бот готов к работе! Нажмите Ctrl+C для остановки")
         logger.info("=" * 60)

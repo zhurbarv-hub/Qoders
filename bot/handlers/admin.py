@@ -184,17 +184,20 @@ async def cmd_status(
                 logger.warning(f"⚠️ Web API недоступен для /status, используем fallback: {api_error}")
         
         # Fallback: получаем статистику из БД напрямую
-        from backend.models import Client, Deadline
+        from backend.models import User, Deadline
         from datetime import date
         
         stats = {}
         
         # Количество активных клиентов
-        stats['active_clients_count'] = db_session.query(Client).filter(
-            Client.is_active == True
+        stats['active_clients_count'] = db_session.query(User).filter(
+            User.role == 'client',
+            User.is_active == True
         ).count()
         
-        stats['total_clients_count'] = db_session.query(Client).count()
+        stats['total_clients_count'] = db_session.query(User).filter(
+            User.role == 'client'
+        ).count()
         
         # Количество дедлайнов по статусам
         all_deadlines = db_session.query(Deadline).filter(

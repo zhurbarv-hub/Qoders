@@ -16,7 +16,7 @@ from typing import List
 from datetime import date, datetime
 
 from backend.database import get_db
-from backend.models import Deadline, Client, DeadlineType, User
+from backend.models import Deadline, User, DeadlineType
 from backend.schemas import (
     DeadlineCreate,
     DeadlineUpdate,
@@ -50,7 +50,7 @@ async def list_deadlines(
     **Query Parameters:**
     - page: Page number (default: 1)
     - limit: Items per page (default: 50, max: 100)
-    - client_id: Filter by client ID (optional)
+    - user_id: Filter by user ID (client) (optional)
     - deadline_type_id: Filter by deadline type ID (optional)
     - status: Filter by status color (green/yellow/red/expired) (optional)
     - sort_by: Sort field (default: expiration_date)
@@ -71,12 +71,12 @@ async def list_deadlines(
     """
     # Build base query with joins
     query = db.query(Deadline)\
-              .join(Client)\
+              .join(User)\
               .join(DeadlineType)
     
     # Apply filters
-    if filters.client_id:
-        query = query.filter(Deadline.client_id == filters.client_id)
+    if filters.client_id:  # Legacy parameter name for backward compatibility
+        query = query.filter(Deadline.user_id == filters.client_id)
     
     if filters.deadline_type_id:
         query = query.filter(Deadline.deadline_type_id == filters.deadline_type_id)
@@ -118,7 +118,11 @@ async def list_deadlines(
         deadline_dict = deadline.to_dict()
         deadline_dict['days_until_expiration'] = deadline.days_until_expiration
         deadline_dict['status_color'] = deadline.status_color
-        deadline_dict['client_name'] = deadline.client.name if deadline.client else None
+        # Populate user information
+        if deadline.user:
+            deadline_dict['user_name'] = deadline.user.display_name
+            deadline_dict['company_name'] = deadline.user.company_name
+            deadline_dict['client_name'] = deadline.user.display_name  # Legacy field
         deadline_dict['deadline_type_name'] = deadline.deadline_type.type_name if deadline.deadline_type else None
         deadline_responses.append(DeadlineResponse(**deadline_dict))
     
@@ -166,7 +170,11 @@ async def get_deadline(
     deadline_dict = deadline.to_dict()
     deadline_dict['days_until_expiration'] = deadline.days_until_expiration
     deadline_dict['status_color'] = deadline.status_color
-    deadline_dict['client_name'] = deadline.client.name if deadline.client else None
+    # Populate user information
+    if deadline.user:
+        deadline_dict['user_name'] = deadline.user.display_name
+        deadline_dict['company_name'] = deadline.user.company_name
+        deadline_dict['client_name'] = deadline.user.display_name  # Legacy field
     deadline_dict['deadline_type_name'] = deadline.deadline_type.type_name if deadline.deadline_type else None
     
     return DeadlineResponse(**deadline_dict)
@@ -179,16 +187,16 @@ async def create_deadline(
     db: Session = Depends(get_db)
 ):
     """
-    Create new deadline for a client
+    Create new deadline for a user (client)
     
     **Request Body:**
-    - client_id: Client ID (required, must exist)
+    - user_id: User ID (client, required, must exist)
     - deadline_type_id: Deadline type ID (required, must exist)
     - expiration_date: Service expiration date (required)
     - notes: Additional notes (optional)
     
     **Validation:**
-    - client_id must reference existing active client
+    - user_id must reference existing active user with role='client'
     - deadline_type_id must reference existing active deadline type
     - expiration_date must be valid date
     - Warning if expiration_date is in the past (but allowed for historical data)
@@ -199,17 +207,24 @@ async def create_deadline(
     
     **Errors:**
     - 400 Bad Request: Validation errors
-    - 404 Not Found: Client or deadline type not found
+    - 404 Not Found: User or deadline type not found
     
     **Authentication:**
     Requires valid JWT token
     """
-    # Validate client exists
-    client = db.query(Client).filter(Client.id == deadline_data.client_id).first()
-    if not client:
+    # Validate user exists and is a client
+    user = db.query(User).filter(User.id == deadline_data.user_id).first()
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client with id {deadline_data.client_id} not found"
+            detail=f"Пользователь с ID {deadline_data.user_id} не найден"
+        )
+    
+    # Check if user is a client
+    if not user.is_client:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Пользователь '{user.full_name}' не является клиентом (роль: {user.role})"
         )
     
     # Validate deadline type exists
@@ -237,7 +252,7 @@ async def create_deadline(
     db.refresh(new_deadline)
     
     return MessageResponse(
-        message="Deadline created successfully",
+        message=f"Дедлайн для '{user.display_name}' успешно создан",
         id=new_deadline.id
     )
 
@@ -257,14 +272,14 @@ async def update_deadline(
     
     **Request Body:**
     All fields optional:
-    - client_id: Change associated client
+    - user_id: Change associated user (client)
     - deadline_type_id: Change deadline type
     - expiration_date: Change expiration date
     - status: Change status (active, expired, renewed)
     - notes: Update notes
     
     **Validation:**
-    - If changing client_id, client must exist
+    - If changing user_id, user must exist and be a client
     - If changing deadline_type_id, type must exist
     - Status must be one of: active, expired, renewed
     
@@ -273,8 +288,8 @@ async def update_deadline(
     - id: Updated deadline ID
     
     **Errors:**
-    - 404 Not Found: Deadline, client, or type not found
-    - 400 Bad Request: Invalid status value
+    - 404 Not Found: Deadline, user, or type not found
+    - 400 Bad Request: Invalid status value or user is not a client
     
     **Authentication:**
     Requires valid JWT token
@@ -285,19 +300,24 @@ async def update_deadline(
     if not deadline:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Deadline with id {deadline_id} not found"
+            detail=f"Дедлайн с ID {deadline_id} не найден"
         )
     
     # Prepare update data
     update_data = deadline_data.model_dump(exclude_unset=True)
     
-    # Validate client if being changed
-    if 'client_id' in update_data:
-        client = db.query(Client).filter(Client.id == update_data['client_id']).first()
-        if not client:
+    # Validate user if being changed
+    if 'user_id' in update_data:
+        user = db.query(User).filter(User.id == update_data['user_id']).first()
+        if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Client with id {update_data['client_id']} not found"
+                detail=f"Пользователь с ID {update_data['user_id']} не найден"
+            )
+        if not user.is_client:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Пользователь '{user.full_name}' не является клиентом"
             )
     
     # Validate deadline type if being changed
@@ -308,7 +328,7 @@ async def update_deadline(
         if not deadline_type:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Deadline type with id {update_data['deadline_type_id']} not found"
+                detail=f"Тип дедлайна с ID {update_data['deadline_type_id']} не найден"
             )
     
     # Update deadline fields
@@ -319,7 +339,7 @@ async def update_deadline(
     db.refresh(deadline)
     
     return MessageResponse(
-        message="Deadline updated successfully",
+        message="Дедлайн успешно обновлён",
         id=deadline.id
     )
 
@@ -360,20 +380,75 @@ async def delete_deadline(
     if not deadline:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Deadline with id {deadline_id} not found"
+            detail=f"Дедлайн с ID {deadline_id} не найден"
         )
     
     # Store info for response
-    client_name = deadline.client.name if deadline.client else "Unknown"
-    type_name = deadline.deadline_type.type_name if deadline.deadline_type else "Unknown"
+    user_name = deadline.user.display_name if deadline.user else "Неизвестно"
+    type_name = deadline.deadline_type.type_name if deadline.deadline_type else "Неизвестно"
     
     # Delete deadline
     db.delete(deadline)
     db.commit()
     
     return MessageResponse(
-        message=f"Deadline deleted: {client_name} - {type_name}"
+        message=f"Дедлайн удалён: {user_name} - {type_name}"
     )
+
+
+@router.get("/urgent", response_model=List[DeadlineResponse], summary="Get Urgent Deadlines")
+async def get_urgent_deadlines(
+    days: int = 14,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Получить срочные дедлайны (истекают в ближайшие N дней)
+    
+    **Query Parameters:**
+    - days: Количество дней для проверки (по умолчанию 14)
+    
+    **Response:**
+    - Массив дедлайнов, которые истекают в ближайшие days дней
+    - Отсортировано по дате истечения (от ближайших к дальним)
+    
+    **Authentication:**
+    Requires valid JWT token
+    """
+    from datetime import timedelta
+    
+    today = date.today()
+    threshold_date = today + timedelta(days=days)
+    
+    # Получаем дедлайны, которые истекают в ближайшие N дней
+    query = db.query(Deadline)\
+              .join(User)\
+              .join(DeadlineType)\
+              .filter(
+                  Deadline.expiration_date >= today,
+                  Deadline.expiration_date <= threshold_date,
+                  Deadline.status == 'active'
+              )\
+              .order_by(asc(Deadline.expiration_date))
+    
+    deadlines = query.all()
+    
+    # Конвертируем в response с вычисляемыми полями
+    deadline_responses = []
+    for deadline in deadlines:
+        deadline_dict = deadline.to_dict()
+        deadline_dict['days_until_expiration'] = deadline.days_until_expiration
+        deadline_dict['status_color'] = deadline.status_color
+        deadline_dict['days_remaining'] = deadline.days_until_expiration  # Алиас для совместимости
+        # Populate user information
+        if deadline.user:
+            deadline_dict['user_name'] = deadline.user.display_name
+            deadline_dict['company_name'] = deadline.user.company_name
+            deadline_dict['client_name'] = deadline.user.display_name  # Legacy field
+        deadline_dict['deadline_type_name'] = deadline.deadline_type.type_name if deadline.deadline_type else None
+        deadline_responses.append(DeadlineResponse(**deadline_dict))
+    
+    return deadline_responses
 
 
 # ============================================

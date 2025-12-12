@@ -9,7 +9,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy.orm import Session
 
-from backend.models import Client, Deadline, DeadlineType
+from backend.models import User, Deadline, DeadlineType
 from bot.services.formatter import format_deadline_list
 from bot.services import checker
 

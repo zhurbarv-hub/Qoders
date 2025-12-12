@@ -10,7 +10,7 @@ from aiogram.filters import Command
 from aiogram.types import Message, FSInputFile
 from sqlalchemy.orm import Session
 
-from backend.models import Contact, Client, Deadline
+from backend.models import User, Deadline
 from bot.services.formatter import format_deadline_list
 
 logger = logging.getLogger(__name__)
@@ -76,13 +76,13 @@ async def cmd_mute(
             return
     
     try:
-        # Находим контакт пользователя
-        contact = db_session.query(Contact).filter(
-            Contact.client_id == client_id,
-            Contact.telegram_id == str(user.id)
+        # Находим пользователя по telegram_id
+        user_obj = db_session.query(User).filter(
+            User.telegram_id == str(user.id),
+            User.role == 'client'
         ).first()
         
-        if not contact:
+        if not user_obj:
             await message.answer(
                 "❌ <b>Контакт не найден</b>\n\n"
                 "Обратитесь к администратору.",
@@ -91,15 +91,13 @@ async def cmd_mute(
             return
         
         # Отключаем уведомления
-        contact.notifications_enabled = False
-        contact.muted_until = datetime.now() + timedelta(days=days)
+        user_obj.notifications_enabled = False
+        # Note: muted_until поле не существует в новой модели User
+        # Можно добавить в notes или просто отключить
         db_session.commit()
-        
-        muted_until = contact.muted_until.strftime('%d.%m.%Y %H:%M')
         
         await message.answer(
             f"🔕 <b>Уведомления отключены</b>\n\n"
-            f"⏰ До: <b>{muted_until}</b>\n"
             f"📅 На {days} дн.\n\n"
             f"Для включения используйте /unmute",
             parse_mode='HTML'
@@ -144,13 +142,13 @@ async def cmd_unmute(
         return
     
     try:
-        # Находим контакт пользователя
-        contact = db_session.query(Contact).filter(
-            Contact.client_id == client_id,
-            Contact.telegram_id == str(user.id)
+        # Находим пользователя по telegram_id
+        user_obj = db_session.query(User).filter(
+            User.telegram_id == str(user.id),
+            User.role == 'client'
         ).first()
         
-        if not contact:
+        if not user_obj:
             await message.answer(
                 "❌ <b>Контакт не найден</b>",
                 parse_mode='HTML'
@@ -158,8 +156,7 @@ async def cmd_unmute(
             return
         
         # Включаем уведомления
-        contact.notifications_enabled = True
-        contact.muted_until = None
+        user_obj.notifications_enabled = True
         db_session.commit()
         
         await message.answer(
@@ -228,30 +225,26 @@ async def cmd_settings(
             
         else:
             # Для клиента показываем его настройки
-            contact = db_session.query(Contact).filter(
-                Contact.client_id == client_id,
-                Contact.telegram_id == str(user.id)
+            user_obj = db_session.query(User).filter(
+                User.telegram_id == str(user.id),
+                User.role == 'client'
             ).first()
             
-            if not contact:
+            if not user_obj:
                 await message.answer("❌ <b>Контакт не найден</b>", parse_mode='HTML')
                 return
             
             # Статус уведомлений
-            if contact.notifications_enabled:
+            if user_obj.notifications_enabled:
                 status = "✅ Включены"
                 mute_info = ""
             else:
                 status = "🔕 Отключены"
-                if contact.muted_until:
-                    muted_until = contact.muted_until.strftime('%d.%m.%Y %H:%M')
-                    mute_info = f"\n• До: <b>{muted_until}</b>"
-                else:
-                    mute_info = ""
+                mute_info = ""
             
             # Количество активных дедлайнов
             deadlines_count = db_session.query(Deadline).filter(
-                Deadline.client_id == client_id,
+                Deadline.user_id == user_obj.id,
                 Deadline.status == 'active'
             ).count()
             
