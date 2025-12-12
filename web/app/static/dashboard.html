@@ -11,22 +11,62 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
-        <header class="mdl-layout__header">
-            <div class="mdl-layout__header-row">
-                <span class="mdl-layout-title">KKT System - Панель управления</span>
-                <div class="mdl-layout-spacer"></div>
-                <nav class="mdl-navigation">
-                    <span class="mdl-navigation__link" id="userName">👤 Загрузка...</span>
-                    <button class="mdl-button mdl-js-button mdl-button--icon" id="logoutBtn" title="Выход">
-                        <i class="material-icons">exit_to_app</i>
-                    </button>
-                </nav>
+    <div class="dashboard-layout">
+        <!-- Боковое меню -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📈 KKT System</h2>
             </div>
-        </header>
+            <nav class="sidebar-nav">
+                <a href="#statistics" class="nav-item active" data-section="statistics">
+                    <i class="material-icons">dashboard</i>
+                    <span>Статистика</span>
+                </a>
+                <a href="#users" class="nav-item" data-section="users">
+                    <i class="material-icons">people</i>
+                    <span>Клиенты</span>
+                </a>
+                <a href="#deadlines" class="nav-item" data-section="deadlines">
+                    <i class="material-icons">alarm</i>
+                    <span>Дедлайны</span>
+                </a>
+                <a href="#deadline-types" class="nav-item" data-section="deadline-types">
+                    <i class="material-icons">category</i>
+                    <span>Типы услуг</span>
+                </a>
+                <a href="#managers" class="nav-item" data-section="managers" data-role="admin,manager">
+                    <i class="material-icons">admin_panel_settings</i>
+                    <span>Пользователи</span>
+                </a>
+                <a href="#export" class="nav-item" data-section="export">
+                    <i class="material-icons">download</i>
+                    <span>Экспорт</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <i class="material-icons">account_circle</i>
+                    <span id="sidebarUserName">Загрузка...</span>
+                </div>
+                <button class="mdl-button mdl-js-button mdl-button--raised" id="sidebarLogoutBtn">
+                    <i class="material-icons">exit_to_app</i>
+                    Выход
+                </button>
+            </div>
+        </aside>
         
-        <main class="mdl-layout__content">
-            <div class="page-content">
+        <!-- Основной контент -->
+        <main class="main-content">
+            <!-- Верхняя панель -->
+            <header class="content-header">
+                <h1 id="pageTitle">📊 Панель управления</h1>
+                <div class="header-actions">
+                    <span class="user-badge" id="userName">👤 Загрузка...</span>
+                </div>
+            </header>
+            
+            <!-- Раздел Статистика -->
+            <div id="statistics-section" class="content-section active">
                 <!-- Статистика -->
                 <div class="mdl-grid">
                     <div class="mdl-cell mdl-cell--12-col">
@@ -147,8 +187,64 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Раздел Клиенты -->
+            <div id="users-section" class="content-section hidden">
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <p style="text-align: center; padding: 40px;">Загрузка данных...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Раздел Дедлайны -->
+            <div id="deadlines-section" class="content-section hidden">
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <p style="text-align: center; padding: 40px;">Загрузка данных...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Раздел Типы услуг -->
+            <div id="deadline-types-section" class="content-section hidden">
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <p style="text-align: center; padding: 40px;">Загрузка данных...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Раздел Пользователи -->
+            <div id="managers-section" class="content-section hidden">
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <p style="text-align: center; padding: 40px;">Загрузка данных...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Раздел Экспорт -->
+            <div id="export-section" class="content-section hidden">
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <p style="text-align: center; padding: 40px;">Загрузка данных...</p>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
     
+    <!-- Snackbar для уведомлений -->
+    <div id="demo-snackbar" class="mdl-js-snackbar mdl-snackbar">
+        <div class="mdl-snackbar__text"></div>
+        <button class="mdl-snackbar__action" type="button"></button>
+    </div>
+    
     <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
-    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/dashboard.js?v=4.13&t=20251212_2359"></script>
+    <script src="/static/js/users.js?v=4.11&t=20251212_2300"></script>
+    <script src="/static/js/deadlines.js?v=4.10&t=20251212_2245"></script>
+    <script src="/static/js/deadline-types.js?v=4.9&t=20251212_2200"></script>
+    <script src="/static/js/managers.js?v=4.9&t=20251212_2200"></script>
+    <script src="/static/js/export.js?v=4.9&t=20251212_2200"></script>

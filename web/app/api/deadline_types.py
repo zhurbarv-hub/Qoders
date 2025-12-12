@@ -38,8 +38,11 @@ async def get_deadline_types(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Получить список всех типов дедлайнов"""
+    """Получить список всех типов дедлайнов (только пользовательские, без системных)"""
     query = db.query(DeadlineType)
+    
+    # Исключаем системные типы
+    query = query.filter(DeadlineType.is_system == False)
     
     if not include_inactive:
         query = query.filter(DeadlineType.is_active == True)

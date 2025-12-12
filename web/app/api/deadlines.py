@@ -10,7 +10,8 @@ from datetime import date, datetime, timedelta
 import math
 
 from ..dependencies import get_db
-from ..models.client import Deadline, Client, DeadlineType
+from ..models.client import Deadline, DeadlineType
+from ..models.user import User
 from ..models.client_schemas import (
     DeadlineCreate,
     DeadlineUpdate,
@@ -44,20 +45,43 @@ def calculate_days_until_expiration(expiration_date: date) -> int:
     return delta.days
 
 
-def enrich_deadline_with_details(deadline: Deadline) -> dict:
+def enrich_deadline_with_details(deadline: Deadline, db: Session = None) -> dict:
     """Обогащение данных дедлайна дополнительной информацией"""
+    # Вручную загружаем связанные объекты, так как relationships закомментированы
+    client = None
+    deadline_type = None
+    
+    if db:
+        # Поддержка как старой (client), так и новой (user) модели
+        if deadline.user_id:
+            client = db.query(User).filter(User.id == deadline.user_id).first()
+        elif deadline.client_id:
+            from app.models.client import Client
+            client = db.query(Client).filter(Client.id == deadline.client_id).first()
+        
+        if deadline.deadline_type_id:
+            deadline_type = db.query(DeadlineType).filter(DeadlineType.id == deadline.deadline_type_id).first()
+    
     return {
         "id": deadline.id,
-        "client_id": deadline.client_id,
+        "client_id": deadline.user_id or deadline.client_id,
         "deadline_type_id": deadline.deadline_type_id,
         "expiration_date": deadline.expiration_date,
         "status": deadline.status,
         "notes": deadline.notes,
         "created_at": deadline.created_at,
         "updated_at": deadline.updated_at,
-        "client_name": deadline.client.name if deadline.client else None,
-        "client_inn": deadline.client.inn if deadline.client else None,
-        "deadline_type_name": deadline.deadline_type.type_name if deadline.deadline_type else None,
+        "client": {
+            "id": client.id if client else None,
+            "company_name": getattr(client, 'company_name', getattr(client, 'name', None)) if client else None,
+            "inn": client.inn if client else None,
+        } if client else None,
+        "deadline_type": {
+            "id": deadline_type.id if deadline_type else None,
+            "name": deadline_type.type_name if deadline_type else None,
+            "type_name": deadline_type.type_name if deadline_type else None,  # Дублируем для совместимости
+        } if deadline_type else None,
+        "notification_enabled": getattr(client, 'notifications_enabled', True) if client else True,
         "days_until_expiration": calculate_days_until_expiration(deadline.expiration_date)
     }
 
@@ -77,58 +101,86 @@ async def get_deadlines(
 ):
     """Получить список всех дедлайнов с фильтрами и пагинацией"""
     
-    # Базовый запрос с JOIN
-    query = db.query(Deadline).join(Client).join(DeadlineType)
-    
-    # Применение фильтров
-    if client_id:
-        query = query.filter(Deadline.client_id == client_id)
-    
-    if deadline_type_id:
-        query = query.filter(Deadline.deadline_type_id == deadline_type_id)
-    
-    if status:
-        query = query.filter(Deadline.status == status)
-    
-    if date_from:
-        query = query.filter(Deadline.expiration_date >= date_from)
-    
-    if date_to:
-        query = query.filter(Deadline.expiration_date <= date_to)
-    
-    # Фильтр по дням до истечения
-    if days_until is not None:
-        target_date = date.today() + timedelta(days=days_until)
-        query = query.filter(
-            and_(
-                Deadline.expiration_date >= date.today(),
-                Deadline.expiration_date <= target_date
+    try:
+        # Базовый запрос - используем LEFT JOIN для deadline_type_id чтобы избежать ошибок
+        query = db.query(Deadline)\
+            .outerjoin(User, Deadline.user_id == User.id)\
+            .outerjoin(DeadlineType, Deadline.deadline_type_id == DeadlineType.id)
+        
+        # Применение фильтров
+        if client_id:
+            # Поддержка обоих полей: user_id (новое) и client_id (старое)
+            query = query.filter(or_(Deadline.user_id == client_id, Deadline.client_id == client_id))
+        
+        if deadline_type_id:
+            query = query.filter(Deadline.deadline_type_id == deadline_type_id)
+        
+        if status:
+            query = query.filter(Deadline.status == status)
+        
+        if date_from:
+            query = query.filter(Deadline.expiration_date >= date_from)
+        
+        if date_to:
+            query = query.filter(Deadline.expiration_date <= date_to)
+        
+        # Фильтр по дням до истечения
+        if days_until is not None:
+            target_date = date.today() + timedelta(days=days_until)
+            query = query.filter(
+                and_(
+                    Deadline.expiration_date >= date.today(),
+                    Deadline.expiration_date <= target_date
+                )
             )
+        
+        # Подсчёт общего количества
+        total = query.count()
+        
+        # Пагинация
+        offset = (page - 1) * page_size
+        deadlines = query.order_by(Deadline.expiration_date).offset(offset).limit(page_size).all()
+        
+        # Обогащение данных
+        enriched_deadlines = []
+        print(f"\n=== ОБРАБОТКА {len(deadlines)} ДЕДЛАЙНОВ ===")
+        for idx, d in enumerate(deadlines, 1):
+            try:
+                print(f"{idx}. Обрабатываем дедлайн ID={d.id}...")
+                enriched_deadlines.append(enrich_deadline_with_details(d, db))
+                print(f"   ✓ Успешно")
+            except Exception as e:
+                # Логируем ошибку но продолжаем
+                import traceback
+                print(f"   ✖ ОШИБКА: Не удалось обработать дедлайн ID={d.id}")
+                print(f"   Причина: {str(e)}")
+                print(f"   client_id={d.client_id}, user_id={getattr(d, 'user_id', None)}, deadline_type_id={d.deadline_type_id}")
+                print(f"   Traceback:\n{traceback.format_exc()}")
+                continue
+        print(f"=== ИТОГО: Успешно обработано {len(enriched_deadlines)} из {len(deadlines)} дедлайнов ===\n")
+        
+        # Расчёт количества страниц
+        total_pages = math.ceil(total / page_size) if total > 0 else 1
+        
+        return DeadlineListResponse(
+            total=total,
+            deadlines=enriched_deadlines,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages
         )
-    
-    # Подсчёт общего количества
-    total = query.count()
-    
-    # Пагинация
-    offset = (page - 1) * page_size
-    deadlines = query.order_by(Deadline.expiration_date).offset(offset).limit(page_size).all()
-    
-    # Обогащение данных
-    enriched_deadlines = [enrich_deadline_with_details(d) for d in deadlines]
-    
-    # Расчёт количества страниц
-    total_pages = math.ceil(total / page_size) if total > 0 else 1
-    
-    return DeadlineListResponse(
-        total=total,
-        deadlines=enriched_deadlines,
-        page=page,
-        page_size=page_size,
-        total_pages=total_pages
-    )
+    except Exception as e:
+        import traceback
+        print(f"Error in get_deadlines: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при загрузке дедлайнов: {str(e)}"
+        )
 
 
 @router.get("/expiring-soon", response_model=List[DeadlineDetailResponse])
+@router.get("/urgent", response_model=List[DeadlineDetailResponse])  # Alias для совместимости
 async def get_expiring_soon(
     days: int = Query(14, ge=1, le=90, description="Количество дней"),
     db: Session = Depends(get_db),
@@ -138,15 +190,18 @@ async def get_expiring_soon(
     
     target_date = date.today() + timedelta(days=days)
     
-    deadlines = db.query(Deadline).join(Client).join(DeadlineType).filter(
-        and_(
-            Deadline.status == 'active',
-            Deadline.expiration_date >= date.today(),
-            Deadline.expiration_date <= target_date
-        )
-    ).order_by(Deadline.expiration_date).all()
+    deadlines = db.query(Deadline)\
+        .outerjoin(User, Deadline.user_id == User.id)\
+        .join(DeadlineType, Deadline.deadline_type_id == DeadlineType.id)\
+        .filter(
+            and_(
+                Deadline.status == 'active',
+                Deadline.expiration_date >= date.today(),
+                Deadline.expiration_date <= target_date
+            )
+        ).order_by(Deadline.expiration_date).all()
     
-    return [enrich_deadline_with_details(d) for d in deadlines]
+    return [enrich_deadline_with_details(d, db) for d in deadlines]
 
 
 @router.get("/by-client/{client_id}", response_model=List[DeadlineDetailResponse])
@@ -158,22 +213,24 @@ async def get_deadlines_by_client(
 ):
     """Получить все дедлайны конкретного клиента"""
     
-    # Проверка существования клиента
-    client = db.query(Client).filter(Client.id == client_id).first()
+    # Проверка существования клиента (ищем в таблице users)
+    client = db.query(User).filter(and_(User.id == client_id, User.role == 'client')).first()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Клиент с ID {client_id} не найден"
         )
     
-    query = db.query(Deadline).join(DeadlineType).filter(Deadline.client_id == client_id)
+    query = db.query(Deadline)\
+        .join(DeadlineType, Deadline.deadline_type_id == DeadlineType.id)\
+        .filter(or_(Deadline.user_id == client_id, Deadline.client_id == client_id))
     
     if not include_inactive:
         query = query.filter(Deadline.status == 'active')
     
     deadlines = query.order_by(Deadline.expiration_date).all()
     
-    return [enrich_deadline_with_details(d) for d in deadlines]
+    return [enrich_deadline_with_details(d, db) for d in deadlines]
 
 
 @router.get("/{deadline_id}", response_model=DeadlineDetailResponse)
@@ -192,7 +249,7 @@ async def get_deadline(
             detail=f"Дедлайн с ID {deadline_id} не найден"
         )
     
-    return enrich_deadline_with_details(deadline)
+    return enrich_deadline_with_details(deadline, db)
 
 
 @router.post("", response_model=DeadlineDetailResponse, status_code=status.HTTP_201_CREATED)
@@ -210,8 +267,8 @@ async def create_deadline(
             detail="Недостаточно прав для создания дедлайнов"
         )
     
-    # Проверка существования клиента
-    client = db.query(Client).filter(Client.id == deadline_data.client_id).first()
+    # Проверка существования клиента (в таблице users)
+    client = db.query(User).filter(and_(User.id == deadline_data.client_id, User.role == 'client')).first()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -228,16 +285,31 @@ async def create_deadline(
             detail=f"Тип дедлайна с ID {deadline_data.deadline_type_id} не найден"
         )
     
-    # Создание дедлайна
-    new_deadline = Deadline(**deadline_data.model_dump())
+    # Создание дедлайна с маппингом client_id -> user_id (и сохранением обоих для совместимости)
+    deadline_dict = deadline_data.model_dump()
+    client_id_value = deadline_dict.get('client_id')
+    
+    # Устанавливаем и user_id (новое поле), и оставляем client_id (старое поле) для совместимости
+    deadline_dict['user_id'] = client_id_value
+    deadline_dict['client_id'] = client_id_value
+    
+    new_deadline = Deadline(**deadline_dict)
     db.add(new_deadline)
-    db.commit()
-    db.refresh(new_deadline)
+    
+    try:
+        db.commit()
+        db.refresh(new_deadline)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при создании дедлайна: {str(e)}"
+        )
     
     # TODO: Отправить уведомление в Telegram
     # await send_telegram_notification(new_deadline, db)
     
-    return enrich_deadline_with_details(new_deadline)
+    return enrich_deadline_with_details(new_deadline, db)
 
 
 @router.put("/{deadline_id}", response_model=DeadlineDetailResponse)
@@ -272,7 +344,7 @@ async def update_deadline(
     db.commit()
     db.refresh(deadline)
     
-    return enrich_deadline_with_details(deadline)
+    return enrich_deadline_with_details(deadline, db)
 
 
 @router.delete("/{deadline_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -140,11 +140,39 @@ class DeadlineResponse(DeadlineBase):
         from_attributes = True
 
 
-class DeadlineDetailResponse(DeadlineResponse):
+class ClientInfo(BaseModel):
+    """Информация о клиенте в дедлайне"""
+    id: Optional[int] = None
+    company_name: Optional[str] = None
+    inn: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class DeadlineTypeInfo(BaseModel):
+    """Информация о типе дедлайна"""
+    id: Optional[int] = None
+    name: Optional[str] = Field(None, alias='type_name')  # Используем type_name из модели
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class DeadlineDetailResponse(BaseModel):
     """Расширенная схема дедлайна с данными клиента и типа"""
-    client_name: str
-    client_inn: str
-    deadline_type_name: str
+    id: int
+    client_id: Optional[int] = None
+    deadline_type_id: Optional[int] = None
+    expiration_date: date
+    status: str
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    client: Optional[ClientInfo] = None
+    deadline_type: Optional[DeadlineTypeInfo] = None
+    notification_enabled: bool = True
     days_until_expiration: Optional[int] = None
 
 

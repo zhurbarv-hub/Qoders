@@ -8,7 +8,8 @@ from sqlalchemy import func, and_
 from datetime import date, timedelta
 
 from ..dependencies import get_db
-from ..models.client import Client, Deadline, DeadlineType, Contact
+from ..models.user import User
+from ..models.client import Deadline, DeadlineType
 from ..models.client_schemas import DashboardStats
 from ..services.auth_service import decode_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -37,11 +38,13 @@ async def get_dashboard_stats(
 ):
     """Получить статистику для дашборда"""
     
-    # Общее количество клиентов
-    total_clients = db.query(func.count(Client.id)).scalar()
+    # Общее количество клиентов (пользователей с role='client')
+    total_clients = db.query(func.count(User.id)).filter(User.role == 'client').scalar()
     
     # Активные клиенты
-    active_clients = db.query(func.count(Client.id)).filter(Client.is_active == True).scalar()
+    active_clients = db.query(func.count(User.id)).filter(
+        and_(User.role == 'client', User.is_active == True)
+    ).scalar()
     
     # Общее количество дедлайнов
     total_deadlines = db.query(func.count(Deadline.id)).scalar()

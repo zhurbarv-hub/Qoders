@@ -2,12 +2,13 @@
 """
 Главный модуль FastAPI приложения
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import logging
 import os
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # ОТНОСИТЕЛЬНЫЕ ИМПОРТЫ
 from .config import settings
@@ -37,6 +38,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware для отключения кеша статических файлов
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Отключаем кеш для всех статических файлов
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+app.add_middleware(NoCacheMiddleware)
 
 # Подключение роутеров API
 app.include_router(auth.router)
@@ -85,6 +99,20 @@ async def shutdown_event():
 async def root():
     """Главная страница - перенаправление на страницу входа"""
     return RedirectResponse(url="/static/login.html")
+
+
+@app.get("/login", response_class=RedirectResponse)
+@app.get("/login.html", response_class=RedirectResponse)
+async def login_redirect():
+    """Перенаправление на страницу входа"""
+    return RedirectResponse(url="/static/login.html")
+
+
+@app.get("/dashboard", response_class=RedirectResponse)
+@app.get("/dashboard.html", response_class=RedirectResponse)
+async def dashboard_redirect():
+    """Перенаправление на дашборд"""
+    return RedirectResponse(url="/static/dashboard.html")
 
 
 @app.get("/health")

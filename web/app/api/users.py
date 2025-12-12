@@ -1,19 +1,38 @@
 # -*- coding: utf-8 -*-
 """
-API endpoints для управления пользователями (только для администраторов)
+API endpoints для управления унифицированными пользователями
+(клиенты, менеджеры, администраторы)
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from sqlalchemy import or_
+from typing import Optional
+from datetime import datetime, timedelta
+import math
+import secrets
+import string
 
 from ..dependencies import get_db
-from ..models.user import WebUser
-from ..models.schemas import UserCreate, UserUpdate, UserResponse, MessageResponse
-from ..services.auth_service import get_password_hash, decode_token
+from ..models.user import User
+from ..models.user_schemas import (
+    UserCreateByAdmin,
+    UserUpdate,
+    UserResponse,
+    UserListResponse,
+    ResendInvitationRequest,
+    InvitationResponse,
+    TelegramRegistrationRequest,
+    TelegramRegistrationResponse
+)
+from ..models.schemas import MessageResponse
+from ..services.auth_service import get_password_hash, decode_token, create_access_token
+from ..services.email_service import EmailService
+from ..config import settings
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
 security = HTTPBearer()
+email_service = EmailService()
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -29,38 +48,111 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     return payload
 
 
+def check_admin_or_manager_role(current_user: dict = Depends(get_current_user)):
+    """Проверка прав администратора или менеджера"""
+    if current_user.get('role') not in ['admin', 'manager']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для управления пользователями"
+        )
+    return current_user
+
+
 def check_admin_role(current_user: dict = Depends(get_current_user)):
     """Проверка прав администратора"""
     if current_user.get('role') != 'admin':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Только администратор может управлять пользователями"
+            detail="Только администратор может выполнять это действие"
         )
     return current_user
 
 
-@router.get("", response_model=List[UserResponse])
+def generate_registration_code(length: int = 8) -> str:
+    """Генерация уникального кода регистрации для Telegram"""
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
+
+@router.get("", response_model=UserListResponse)
 async def get_users(
+    page: int = Query(1, ge=1, description="Номер страницы"),
+    page_size: int = Query(50, ge=1, le=100, description="Количество записей на странице"),
+    search: Optional[str] = Query(None, description="Поиск по email, названию, ИНН"),
+    role: Optional[str] = Query(None, pattern="^(client|manager|admin)$", description="Фильтр по роли"),
+    is_active: Optional[bool] = Query(None, description="Фильтр по активности"),
+    has_password: Optional[bool] = Query(None, description="Фильтр по наличию пароля"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(check_admin_role)
+    current_user: dict = Depends(check_admin_or_manager_role)
 ):
     """
-    Получить список всех пользователей (только для администратора)
+    Получить список всех пользователей с пагинацией и фильтрами
+    Доступно для администраторов и менеджеров
     """
-    users = db.query(WebUser).order_by(WebUser.username).all()
-    return users
+    # Базовый запрос
+    query = db.query(User)
+    
+    # Применение фильтров
+    if role:
+        query = query.filter(User.role == role)
+    
+    if is_active is not None:
+        query = query.filter(User.is_active == is_active)
+    
+    if has_password is not None:
+        if has_password:
+            query = query.filter(User.password_hash.isnot(None))
+        else:
+            query = query.filter(User.password_hash.is_(None))
+    
+    # Поиск
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                User.email.ilike(search_pattern),
+                User.full_name.ilike(search_pattern),
+                User.company_name.ilike(search_pattern),
+                User.inn.like(search_pattern)
+            )
+        )
+    
+    # Подсчёт общего количества
+    total = query.count()
+    
+    # Пагинация
+    offset = (page - 1) * page_size
+    users = query.order_by(User.full_name).offset(offset).limit(page_size).all()
+    
+    # Добавление флага has_password
+    users_with_flag = []
+    for user in users:
+        user_dict = UserResponse.model_validate(user).model_dump()
+        user_dict['has_password'] = user.password_hash is not None
+        users_with_flag.append(UserResponse(**user_dict))
+    
+    # Расчёт количества страниц
+    total_pages = math.ceil(total / page_size) if total > 0 else 1
+    
+    return UserListResponse(
+        total=total,
+        users=users_with_flag,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(check_admin_role)
+    current_user: dict = Depends(check_admin_or_manager_role)
 ):
     """
-    Получить пользователя по ID (только для администратора)
+    Получить пользователя по ID
     """
-    user = db.query(WebUser).filter(WebUser.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id).first()
     
     if not user:
         raise HTTPException(
@@ -68,51 +160,107 @@ async def get_user(
             detail=f"Пользователь с ID {user_id} не найден"
         )
     
-    return user
+    # Добавление флага has_password
+    user_dict = UserResponse.model_validate(user).model_dump()
+    user_dict['has_password'] = user.password_hash is not None
+    return UserResponse(**user_dict)
 
 
 @router.post("", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
-    user_data: UserCreate,
+    user_data: UserCreateByAdmin,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(check_admin_role)
+    current_user: dict = Depends(check_admin_or_manager_role)
 ):
     """
-    Создать нового пользователя (только для администратора)
+    Создать нового пользователя (доступно для администратора и менеджера)
+    При создании клиента без пароля отправляется email-приглашение
     """
-    # Проверка уникальности username
-    existing_user = db.query(WebUser).filter(WebUser.username == user_data.username).first()
+    # Проверка уникальности email
+    existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Пользователь с именем '{user_data.username}' уже существует"
+            detail=f"Пользователь с email '{user_data.email}' уже существует"
         )
     
-    # Проверка уникальности email
-    if user_data.email:
-        existing_email = db.query(WebUser).filter(WebUser.email == user_data.email).first()
-        if existing_email:
+    # Проверка уникальности ИНН для клиентов
+    if user_data.inn:
+        existing_inn = db.query(User).filter(User.inn == user_data.inn).first()
+        if existing_inn:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Пользователь с email '{user_data.email}' уже существует"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Пользователь с ИНН {user_data.inn} уже существует"
             )
     
-    # Создание нового пользователя
-    new_user = WebUser(
-        username=user_data.username,
-        email=user_data.email,
-        full_name=user_data.full_name,
-        role=user_data.role,
-        is_active=user_data.is_active,
-        password_hash=get_password_hash(user_data.password)
-    )
+    # Подготовка данных для создания
+    user_dict = user_data.model_dump(exclude={'password', 'send_invitation'})
     
+    # Установка пароля если предоставлен
+    if user_data.password:
+        user_dict['password_hash'] = get_password_hash(user_data.password)
+    else:
+        user_dict['password_hash'] = None
+    
+    # Генерация кода регистрации для Telegram (только для клиентов)
+    registration_code = None
+    code_expires_at = None
+    if user_data.role == 'client':
+        # Генерируем уникальный код
+        for _ in range(10):  # Максимум 10 попыток
+            code = generate_registration_code()
+            existing_code = db.query(User).filter(User.registration_code == code).first()
+            if not existing_code:
+                registration_code = code
+                code_expires_at = datetime.now() + timedelta(hours=24)
+                break
+        
+        if not registration_code:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Не удалось сгенерировать уникальный код регистрации"
+            )
+        
+        user_dict['registration_code'] = registration_code
+        user_dict['code_expires_at'] = code_expires_at
+    
+    # Создание пользователя
+    new_user = User(**user_dict)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     
+    # Отправка email-приглашения если не установлен пароль
+    email_sent = False
+    if user_data.send_invitation and not user_data.password:
+        # Создание токена активации (действителен 48 часов)
+        activation_token = create_access_token(
+            data={
+                "sub": str(new_user.id),
+                "email": new_user.email,
+                "type": "activation"
+            },
+            expires_delta=timedelta(hours=48)
+        )
+        
+        # Отправка email
+        email_sent = email_service.send_invitation_email(
+            to_email=new_user.email,
+            full_name=new_user.full_name,
+            company_name=new_user.company_name or "",
+            activation_token=activation_token,
+            registration_code=registration_code,
+            code_expires_at=code_expires_at
+        )
+    
+    message = f"Пользователь '{new_user.full_name}' успешно создан"
+    if email_sent:
+        message += f". Приглашение отправлено на {new_user.email}"
+    elif user_data.send_invitation and not user_data.password:
+        message += ". Не удалось отправить email-приглашение"
+    
     return MessageResponse(
-        message=f"Пользователь '{new_user.username}' успешно создан",
+        message=message,
         id=new_user.id
     )
 
@@ -122,12 +270,12 @@ async def update_user(
     user_id: int,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(check_admin_role)
+    current_user: dict = Depends(check_admin_or_manager_role)
 ):
     """
-    Обновить данные пользователя (только для администратора)
+    Обновить данные пользователя
     """
-    user = db.query(WebUser).filter(WebUser.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id).first()
     
     if not user:
         raise HTTPException(
@@ -138,23 +286,11 @@ async def update_user(
     # Обновление данных
     update_data = user_data.model_dump(exclude_unset=True)
     
-    # Проверка уникальности username при изменении
-    if 'username' in update_data and update_data['username'] != user.username:
-        existing = db.query(WebUser).filter(
-            WebUser.username == update_data['username'],
-            WebUser.id != user_id
-        ).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Пользователь с именем '{update_data['username']}' уже существует"
-            )
-    
     # Проверка уникальности email при изменении
     if 'email' in update_data and update_data['email'] != user.email:
-        existing = db.query(WebUser).filter(
-            WebUser.email == update_data['email'],
-            WebUser.id != user_id
+        existing = db.query(User).filter(
+            User.email == update_data['email'],
+            User.id != user_id
         ).first()
         if existing:
             raise HTTPException(
@@ -162,10 +298,17 @@ async def update_user(
                 detail=f"Пользователь с email '{update_data['email']}' уже существует"
             )
     
-    # Хеширование нового пароля если он передан
-    if 'password' in update_data and update_data['password']:
-        update_data['password_hash'] = get_password_hash(update_data['password'])
-        del update_data['password']
+    # Проверка уникальности ИНН при изменении
+    if 'inn' in update_data and update_data['inn'] and update_data['inn'] != user.inn:
+        existing = db.query(User).filter(
+            User.inn == update_data['inn'],
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Пользователь с ИНН {update_data['inn']} уже существует"
+            )
     
     # Применение изменений
     for field, value in update_data.items():
@@ -175,8 +318,43 @@ async def update_user(
     db.refresh(user)
     
     return MessageResponse(
-        message=f"Пользователь '{user.username}' успешно обновлён",
+        message=f"Пользователь '{user.full_name}' успешно обновлён",
         id=user.id
+    )
+
+
+@router.patch("/{user_id}/toggle-status", response_model=MessageResponse)
+async def toggle_user_status(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(check_admin_role)
+):
+    """
+    Изменить статус активности пользователя (активировать/деактивировать)
+    Только для администратора
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Пользователь с ID {user_id} не найден"
+        )
+    
+    # Запрет на изменение статуса самого себя
+    if user.id == int(current_user.get('sub', 0)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нельзя изменить статус своей учётной записи"
+        )
+    
+    # Переключение статуса
+    user.is_active = not user.is_active
+    db.commit()
+    
+    status_text = "активирован" if user.is_active else "деактивирован"
+    return MessageResponse(
+        message=f"Пользователь '{user.full_name}' {status_text}"
     )
 
 
@@ -189,7 +367,7 @@ async def delete_user(
     """
     Деактивировать пользователя (только для администратора)
     """
-    user = db.query(WebUser).filter(WebUser.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id).first()
     
     if not user:
         raise HTTPException(
@@ -209,5 +387,142 @@ async def delete_user(
     db.commit()
     
     return MessageResponse(
-        message=f"Пользователь '{user.username}' деактивирован"
+        message=f"Пользователь '{user.full_name}' деактивирован"
+    )
+
+
+@router.post("/resend-invitation", response_model=InvitationResponse)
+async def resend_invitation(
+    request: ResendInvitationRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(check_admin_or_manager_role)
+):
+    """
+    Повторно отправить приглашение пользователю
+    """
+    user = db.query(User).filter(User.id == request.user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Пользователь с ID {request.user_id} не найден"
+        )
+    
+    # Проверка - приглашения отправляются только пользователям без пароля
+    if user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь уже установил пароль"
+        )
+    
+    # Регенерация кода регистрации если запрошено
+    registration_code = user.registration_code
+    code_expires_at = user.code_expires_at
+    
+    if request.regenerate_code and user.role == 'client':
+        # Генерируем новый уникальный код
+        for _ in range(10):
+            code = generate_registration_code()
+            existing_code = db.query(User).filter(User.registration_code == code).first()
+            if not existing_code:
+                registration_code = code
+                code_expires_at = datetime.now() + timedelta(hours=24)
+                user.registration_code = registration_code
+                user.code_expires_at = code_expires_at
+                db.commit()
+                break
+    
+    # Создание нового токена активации
+    activation_token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "type": "activation"
+        },
+        expires_delta=timedelta(hours=48)
+    )
+    
+    # Отправка email
+    email_sent = email_service.send_invitation_email(
+        to_email=user.email,
+        full_name=user.full_name,
+        company_name=user.company_name or "",
+        activation_token=activation_token,
+        registration_code=registration_code,
+        code_expires_at=code_expires_at
+    )
+    
+    if not email_sent:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не удалось отправить email-приглашение"
+        )
+    
+    return InvitationResponse(
+        success=True,
+        message=f"Приглашение отправлено на {user.email}",
+        activation_token=activation_token,
+        registration_code=registration_code,
+        code_expires_at=code_expires_at
+    )
+
+
+@router.post("/telegram/register", response_model=TelegramRegistrationResponse)
+async def register_telegram(
+    request: TelegramRegistrationRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Регистрация пользователя в Telegram боте по коду
+    Эндпоинт вызывается Telegram ботом
+    """
+    # Поиск пользователя по коду регистрации
+    user = db.query(User).filter(
+        User.registration_code == request.registration_code
+    ).first()
+    
+    if not user:
+        return TelegramRegistrationResponse(
+            success=False,
+            message="Неверный код регистрации"
+        )
+    
+    # Проверка срока действия кода
+    if user.code_expires_at and user.code_expires_at < datetime.now():
+        return TelegramRegistrationResponse(
+            success=False,
+            message="Срок действия кода истёк. Обратитесь к менеджеру"
+        )
+    
+    # Проверка - не занят ли уже этот telegram_id
+    existing_telegram = db.query(User).filter(
+        User.telegram_id == request.telegram_id,
+        User.id != user.id
+    ).first()
+    
+    if existing_telegram:
+        return TelegramRegistrationResponse(
+            success=False,
+            message="Этот Telegram аккаунт уже зарегистрирован"
+        )
+    
+    # Обновление данных Telegram
+    user.telegram_id = request.telegram_id
+    user.telegram_username = request.telegram_username
+    user.first_name = request.first_name
+    user.last_name = request.last_name
+    user.last_interaction = datetime.now()
+    
+    # Очистка кода регистрации (использован)
+    user.registration_code = None
+    user.code_expires_at = None
+    
+    db.commit()
+    
+    return TelegramRegistrationResponse(
+        success=True,
+        message=f"Регистрация успешна! Добро пожаловать, {user.full_name}",
+        user_id=user.id,
+        email=user.email,
+        company_name=user.company_name
     )

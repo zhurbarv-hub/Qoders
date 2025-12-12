@@ -56,7 +56,8 @@ class Deadline(Base):
     __tablename__ = "deadlines"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    client_id = Column(Integer, ForeignKey('clients.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)  # Новое поле
+    client_id = Column(Integer, ForeignKey('clients.id', ondelete='CASCADE'), nullable=True, index=True)  # Старое поле (для совместимости)
     deadline_type_id = Column(Integer, ForeignKey('deadline_types.id'), nullable=False, index=True)
     expiration_date = Column(Date, nullable=False, index=True)
     status = Column(String(20), nullable=False, default='active', index=True)
@@ -65,12 +66,13 @@ class Deadline(Base):
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Отношения
-    client = relationship("Client", back_populates="deadlines")
+    # user = relationship("User", back_populates="deadlines")  # Пока не используем, чтобы избежать циркулярных импортов
+    client = relationship("Client", back_populates="deadlines")  # Старая связь
     deadline_type = relationship("DeadlineType", back_populates="deadlines")
     notification_logs = relationship("NotificationLog", back_populates="deadline", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Deadline(id={self.id}, client_id={self.client_id}, expiration={self.expiration_date})>"
+        return f"<Deadline(id={self.id}, user_id={self.user_id}, client_id={self.client_id}, expiration={self.expiration_date})>"
 
 
 class Contact(Base):

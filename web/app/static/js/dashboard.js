@@ -1,5 +1,7 @@
-// Константы API
-const API_BASE_URL = 'http://localhost:8000/api';
+// Константы API (если ещё не объявлены)
+if (typeof API_BASE_URL === 'undefined') {
+    var API_BASE_URL = window.location.origin + '/api';
+}
 
 // Проверка авторизации при загрузке страницы
 document.addEventListener('DOMContentLoaded', async () => {
@@ -17,21 +19,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         userElement.textContent = user.full_name || user.username || 'Пользователь';
     }
 
-    // Загрузка данных дашборда
-    await loadDashboardData();
+    // Инициализация навигации
+    initNavigation();
+    
+    // Фильтрация меню по роли пользователя
+    filterMenuByRole(user.role);
+    
+    // Восстановление последней активной секции или переход по hash
+    const hash = window.location.hash.substring(1);
+    const lastSection = hash || localStorage.getItem('lastActiveSection') || 'statistics';
+    switchSection(lastSection);
 
-    // Настройка кнопки выхода
+    // Настройка кнопок выхода
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', handleLogout);
+    }
+    const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
+    if (sidebarLogoutBtn) {
+        sidebarLogoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Обновление имени пользователя в сайдбаре
+    const sidebarUserName = document.getElementById('sidebarUserName');
+    if (sidebarUserName) {
+        sidebarUserName.textContent = user.full_name || user.username || 'Пользователь';
     }
 });
 
 // Загрузка данных дашборда
 async function loadDashboardData() {
+    console.log('📊 Загрузка данных дашборда...');
     try {
         const token = localStorage.getItem('access_token');
+        if (!token) {
+            console.error('❌ Нет токена авторизации');
+            handleLogout();
+            return;
+        }
 
+        console.log('🔑 Токен найден, запуск параллельных запросов...');
+        
         // Параллельная загрузка всех данных
         const [summaryResponse, urgentResponse, typesResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/dashboard/stats`, {
@@ -54,30 +82,53 @@ async function loadDashboardData() {
             })
         ]);
 
+        console.log('📊 Статусы ответов:', {
+            summary: summaryResponse.status,
+            urgent: urgentResponse.status,
+            types: typesResponse.status
+        });
+
         if (!summaryResponse.ok) {
+            console.error('❌ Ошибка загрузки статистики:', summaryResponse.status);
             if (summaryResponse.status === 401) {
+                console.log('🚫 Неавторизован, перенаправление на логин');
                 handleLogout();
                 return;
             }
-            throw new Error('Ошибка загрузки данных');
+            const errorText = await summaryResponse.text();
+            console.error('❌ Текст ошибки:', errorText);
+            throw new Error(`Ошибка загрузки данных: ${summaryResponse.status}`);
         }
 
+        console.log('✅ Парсинг данных...');
         const summaryData = await summaryResponse.json();
         const urgentData = urgentResponse.ok ? await urgentResponse.json() : [];
         const typesData = typesResponse.ok ? await typesResponse.json() : [];
 
+        console.log('✅ Данные получены:', {
+            summary: summaryData,
+            urgentCount: urgentData.length,
+            typesCount: typesData.length
+        });
+
         // Обновление карточек статистики
+        console.log('📊 Обновление карточек статистики...');
         updateStatisticsCards(summaryData);
 
         // Отрисовка графиков
+        console.log('📊 Отрисовка графиков...');
         renderStatusChart(summaryData);
-        renderTypeChart(typesData);  // Теперь с реальными данными
+        renderTypeChart(typesData);
 
         // Заполнение таблицы срочных дедлайнов
-        renderUrgentDeadlines(urgentData);  // Теперь с реальными данными
+        console.log('📊 Отрисовка таблицы срочных дедлайнов...');
+        renderUrgentDeadlines(urgentData);
+
+        console.log('✅ Дашборд успешно загружен!');
 
     } catch (error) {
-        console.error('Ошибка при загрузке данных дашборда:', error);
+        console.error('❌ Ошибка при загрузке данных дашборда:', error);
+        console.error('❌ Stack trace:', error.stack);
         showError('Не удалось загрузить данные дашборда');
     }
 }
@@ -263,7 +314,7 @@ function renderUrgentDeadlines(deadlines) {
         // Определение статуса и цвета
         let statusText = '';
         let statusColor = '';
-        const daysRemaining = deadline.days_remaining;
+        const daysRemaining = deadline.days_until_expiration;
 
         if (daysRemaining < 0) {
             statusText = 'Просрочено';
@@ -286,10 +337,14 @@ function renderUrgentDeadlines(deadlines) {
             month: '2-digit',
             year: 'numeric'
         });
+        
+        // Получение имени клиента и типа дедлайна
+        const clientName = deadline.client?.company_name || 'Не указан';
+        const deadlineType = deadline.deadline_type?.name || 'Не указан';
 
         row.innerHTML = `
-            <td class="mdl-data-table__cell--non-numeric">${deadline.client_name || 'Не указан'}</td>
-            <td class="mdl-data-table__cell--non-numeric">${deadline.deadline_type || 'Не указан'}</td>
+            <td class="mdl-data-table__cell--non-numeric">${clientName}</td>
+            <td class="mdl-data-table__cell--non-numeric">${deadlineType}</td>
             <td class="mdl-data-table__cell--non-numeric">${formattedDate}</td>
             <td class="mdl-data-table__cell--non-numeric" style="font-weight: bold; color: ${statusColor};">
                 ${daysRemaining} дн.
@@ -305,19 +360,185 @@ function renderUrgentDeadlines(deadlines) {
     });
 }
 
+// Инициализация навигации
+function initNavigation() {
+    // Обработчики кликов на элементы навигации
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const section = item.dataset.section;
+            if (section) {
+                switchSection(section);
+                window.location.hash = section;
+            }
+        });
+    });
+    
+    // Обработчик изменения hash (browser back/forward)
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            switchSection(hash);
+        }
+    });
+}
+
+// Переключение между разделами
+function switchSection(sectionId) {
+    console.log('🔄 switchSection вызван для:', sectionId);
+    
+    // Скрыть все секции
+    document.querySelectorAll('.content-section').forEach(section => {
+        section.classList.remove('active');
+        section.classList.add('hidden');
+    });
+    
+    // Убрать активность со всех пунктов меню
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Показать выбранную секцию
+    const targetSection = document.getElementById(`${sectionId}-section`);
+    if (targetSection) {
+        console.log('✅ Секция найдена:', `${sectionId}-section`);
+        targetSection.classList.add('active');
+        targetSection.classList.remove('hidden');
+    } else {
+        console.error('❌ Секция НЕ найдена:', `${sectionId}-section`);
+    }
+    
+    // Активировать соответствующий пункт меню
+    const navItem = document.querySelector(`[data-section="${sectionId}"]`);
+    if (navItem) {
+        navItem.classList.add('active');
+    }
+    
+    // Обновить заголовок страницы
+    const sectionTitles = {
+        'statistics': 'Статистика',
+        'users': 'Клиенты',
+        'deadlines': 'Дедлайны',
+        'deadline-types': 'Типы дедлайнов',
+        'managers': 'Пользователи',
+        'export': 'Экспорт данных'
+    };
+    document.title = `${sectionTitles[sectionId] || 'Dashboard'} - KKT Management`;
+    
+    // Загрузить данные для секции
+    loadSectionData(sectionId);
+    
+    // Сохранить в localStorage
+    localStorage.setItem('lastActiveSection', sectionId);
+}
+
+// Загрузка данных для конкретной секции
+function loadSectionData(sectionId) {
+    console.log('🔵 loadSectionData вызван для:', sectionId);
+    switch(sectionId) {
+        case 'statistics':
+            console.log('📊 Загрузка статистики');
+            loadDashboardData();
+            break;
+        case 'users':
+            console.log('👥 Проверка функции loadUsersData:', typeof loadUsersData);
+            if (typeof loadUsersData === 'function') {
+                console.log('✅ Вызов loadUsersData()');
+                loadUsersData();
+            } else {
+                console.error('❌ loadUsersData не определена!');
+            }
+            break;
+        case 'deadlines':
+            console.log('⏰ Проверка функции loadDeadlinesData:', typeof loadDeadlinesData);
+            if (typeof loadDeadlinesData === 'function') {
+                console.log('✅ Вызов loadDeadlinesData()');
+                loadDeadlinesData();
+            } else {
+                console.error('❌ loadDeadlinesData не определена!');
+            }
+            break;
+        case 'deadline-types':
+            console.log('📋 Проверка функции loadDeadlineTypesData:', typeof loadDeadlineTypesData);
+            if (typeof loadDeadlineTypesData === 'function') {
+                console.log('✅ Вызов loadDeadlineTypesData()');
+                loadDeadlineTypesData();
+            } else {
+                console.error('❌ loadDeadlineTypesData не определена!');
+            }
+            break;
+        case 'managers':
+            console.log('👤 Проверка функции loadManagersData:', typeof loadManagersData);
+            if (typeof loadManagersData === 'function') {
+                console.log('✅ Вызов loadManagersData()');
+                loadManagersData();
+            } else {
+                console.error('❌ loadManagersData не определена!');
+            }
+            break;
+        case 'export':
+            console.log('📥 Проверка функции loadExportData:', typeof loadExportData);
+            if (typeof loadExportData === 'function') {
+                console.log('✅ Вызов loadExportData()');
+                loadExportData();
+            } else {
+                console.error('❌ loadExportData не определена!');
+            }
+            break;
+    }
+}
+
+// Фильтрация меню по роли пользователя
+function filterMenuByRole(role) {
+    // Пункт "Пользователи" доступен только для admin и manager
+    if (!['admin', 'manager'].includes(role)) {
+        const managersNavItem = document.querySelector('[data-section="managers"]');
+        if (managersNavItem) {
+            managersNavItem.style.display = 'none';
+        }
+    }
+    
+    // Пункт "Экспорт" доступен только для admin и manager  
+    if (!['admin', 'manager'].includes(role)) {
+        const exportNavItem = document.querySelector('[data-section="export"]');
+        if (exportNavItem) {
+            exportNavItem.style.display = 'none';
+        }
+    }
+    
+    // Для клиентов показываем только их данные
+    if (role === 'client') {
+        // Раздел "Клиенты" переименовываем в "Мои данные"
+        const usersNavItem = document.querySelector('[data-section="users"]');
+        if (usersNavItem) {
+            const span = usersNavItem.querySelector('span');
+            if (span) span.textContent = 'Мои данные';
+        }
+    }
+}
+
 // Обработка выхода
 function handleLogout() {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
+    localStorage.removeItem('lastActiveSection');
     window.location.href = '/login.html';
 }
 
 // Отображение ошибки
 function showError(message) {
+    console.error('❌ ОШИБКА:', message);
+    
+    // Попытка использовать snackbar
     const snackbar = document.getElementById('demo-snackbar');
     if (snackbar && snackbar.MaterialSnackbar) {
-        snackbar.MaterialSnackbar.showSnackbar({ message });
+        snackbar.MaterialSnackbar.showSnackbar({ 
+            message: message,
+            timeout: 5000 
+        });
     } else {
+        // Fallback на alert если snackbar недоступен
+        console.warn('⚠️ Snackbar недоступен, используется alert');
         alert(message);
     }
 }
