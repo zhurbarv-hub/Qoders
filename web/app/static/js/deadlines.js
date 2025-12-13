@@ -190,7 +190,7 @@ function renderDeadlinesTable(deadlines) {
                         console.log(`Отрисовка строки ${idx + 1}: ID=${deadline.id}, Клиент="${clientName}", Тип="${typeName}"`);
                         
                         return `
-                            <tr>
+                            <tr data-deadline-id="${deadline.id}">
                                 ${isAdmin ? `<td class="mdl-data-table__cell--non-numeric">${clientName}</td>` : ''}
                                 <td class="mdl-data-table__cell--non-numeric">${typeName}</td>
                                 <td>${formatDate(deadline.expiration_date)}</td>
@@ -203,9 +203,6 @@ function renderDeadlinesTable(deadlines) {
                                 <td>${deadline.notification_enabled ? '✅ Включены' : '❌ Отключены'}</td>
                                 ${isAdmin ? `
                                 <td>
-                                    <button class="mdl-button mdl-js-button mdl-button--icon" onclick="editDeadline(${deadline.id})">
-                                        <i class="material-icons">edit</i>
-                                    </button>
                                     <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteDeadline(${deadline.id})">
                                         <i class="material-icons">delete</i>
                                     </button>
@@ -232,6 +229,23 @@ function renderDeadlinesTable(deadlines) {
     if (typeof componentHandler !== 'undefined') {
         componentHandler.upgradeDom();
     }
+    
+    // Добавляем обработчик клика на строки для редактирования
+    setTimeout(() => {
+        const rows = document.querySelectorAll('#deadlines-section tbody tr');
+        rows.forEach(row => {
+            const deadlineId = row.getAttribute('data-deadline-id');
+            if (deadlineId) {
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', function(e) {
+                    // Проверяем, что клик не по кнопке удаления
+                    if (!e.target.closest('button') && !e.target.closest('.mdl-button')) {
+                        editDeadline(parseInt(deadlineId));
+                    }
+                });
+            }
+        });
+    }, 100);
 }
 
 /**
@@ -647,9 +661,31 @@ async function submitDeadlineForm(event, mode, deadlineId) {
  * Закрытие модального окна дедлайна
  */
 function closeDeadlineModal(element) {
-    const overlay = element.closest('.modal-overlay');
+    // Ищем overlay - либо через closest, либо через document
+    let overlay = null;
+    
+    if (element && element.closest) {
+        overlay = element.closest('.modal-overlay');
+    }
+    
+    // Если не нашли через closest, ищем в document
+    if (!overlay) {
+        overlay = document.querySelector('.modal-overlay');
+    }
+    
     if (overlay) {
-        overlay.querySelector('.modal').classList.remove('show');
+        // Проверяем, не закрывается ли уже модальное окно
+        if (overlay.dataset.closing === 'true') {
+            return; // Уже закрывается, не делаем ничего
+        }
+        
+        // Отмечаем, что началось закрытие
+        overlay.dataset.closing = 'true';
+        
+        const modal = overlay.querySelector('.modal');
+        if (modal) {
+            modal.classList.remove('show');
+        }
         setTimeout(() => overlay.remove(), 300);
     }
 }

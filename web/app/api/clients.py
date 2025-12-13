@@ -9,12 +9,17 @@ from typing import Optional
 import math
 
 from ..dependencies import get_db
-from ..models.client import Client
+from ..models.client import Client, Deadline
+from ..models.cash_register import CashRegister
+from ..models.user import User
 from ..models.client_schemas import (
     ClientCreate,
     ClientUpdate,
     ClientResponse,
-    ClientListResponse
+    ClientListResponse,
+    ClientFullDetailsResponse,
+    CashRegisterShort,
+    DeadlineShortForClient
 )
 from ..services.auth_service import decode_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials

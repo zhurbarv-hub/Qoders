@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Детали клиента - KKT System</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        /* Компактный заголовок */
+        .client-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .client-header-content {
+            flex: 1;
+        }
+        .client-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 500;
+        }
+        .client-header p {
+            margin: 4px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .telegram-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .telegram-status.connected {
+            background: rgba(40, 167, 69, 0.3);
+        }
+        .telegram-status.disconnected {
+            background: rgba(220, 53, 69, 0.3);
+        }
+        
+        /* Компактные карточки секций */
+        .section-card {
+            margin-bottom: 12px;
+        }
+        .mdl-card__title {
+            padding: 12px 16px;
+            min-height: auto;
+        }
+        .mdl-card__title-text {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .mdl-card__supporting-text {
+            padding: 12px 16px;
+        }
+        .mdl-card__actions {
+            padding: 8px 16px;
+        }
+        
+        /* Компактные карточки касс */
+        .register-card {
+            border-left: 3px solid #667eea;
+            margin-bottom: 8px;
+            padding: 10px 12px;
+            background: #f8f9fa;
+            border-radius: 3px;
+        }
+        .register-card h4 {
+            margin: 0 0 6px 0;
+            font-size: 15px;
+        }
+        .register-card p {
+            margin: 3px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        /* Компактные дедлайны */
+        .deadline-item {
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            border-radius: 3px;
+            border-left: 3px solid #ddd;
+            font-size: 13px;
+        }
+        .deadline-item.status-green { border-left-color: #28a745; background-color: #e8f5e9; }
+        .deadline-item.status-yellow { border-left-color: #ffc107; background-color: #fffde7; }
+        .deadline-item.status-orange { border-left-color: #fd7e14; background-color: #fff3e0; }
+        .deadline-item.status-red { border-left-color: #dc3545; background-color: #ffebee; }
+        
+        /* Компактные бейджи */
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-green { background-color: #28a745; color: white; }
+        .badge-yellow { background-color: #ffc107; color: #333; }
+        .badge-orange { background-color: #fd7e14; color: white; }
+        .badge-red { background-color: #dc3545; color: white; }
+        
+        /* Компактная кнопка возврата */
+        .back-button {
+            margin-bottom: 12px;
+        }
+        
+        /* Компактная таблица */
+        .mdl-data-table {
+            font-size: 13px;
+        }
+        .mdl-data-table td {
+            padding: 8px 12px;
+        }
+        
+        /* Убираем лишние отступы в grid */
+        .mdl-grid {
+            padding: 0;
+            margin: 0 0 12px 0;
+        }
+        .mdl-cell {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-layout">
+        <!-- Боковое меню (упрощенное) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📈 KKT System</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/static/dashboard.html" class="nav-item">
+                    <i class="material-icons">dashboard</i>
+                    <span>Назад к панели</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <i class="material-icons">account_circle</i>
+                    <span id="sidebarUserName">Загрузка...</span>
+                </div>
+                <button class="mdl-button mdl-js-button mdl-button--raised" id="sidebarLogoutBtn">
+                    <i class="material-icons">exit_to_app</i>
+                    Выход
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <!-- Кнопка возврата -->
+            <div class="back-button">
+                <button class="mdl-button mdl-js-button mdl-button--raised" onclick="history.back()">
+                    <i class="material-icons">arrow_back</i>
+                    Назад
+                </button>
+            </div>
+
+            <!-- Заголовок клиента -->
+            <div class="client-header" id="clientHeader">
+                <div class="client-header-content">
+                    <h1 id="clientName">Загрузка...</h1>
+                    <p id="clientInfo">ИНН: ... | Email: ...</p>
+                </div>
+                <div class="telegram-status" id="telegramStatus">
+                    <i class="material-icons" style="font-size: 18px;">telegram</i>
+                    <span id="telegramStatusText">Проверка...</span>
+                </div>
+            </div>
+
+            <!-- Информация о клиенте -->
+            <div class="mdl-grid">
+                <div class="mdl-cell mdl-cell--12-col">
+                    <div class="mdl-card mdl-shadow--2dp section-card" style="width: 100%;">
+                        <div class="mdl-card__title mdl-color--primary mdl-color-text--white">
+                            <h2 class="mdl-card__title-text">📋 Информация о клиенте</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <table class="mdl-data-table" style="width: 100%; border: none;">
+                                <tbody id="clientDetailsTable">
+                                    <tr><td colspan="2">Загрузка...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Кассовые аппараты -->
+            <div class="mdl-grid">
+                <div class="mdl-cell mdl-cell--12-col">
+                    <div class="mdl-card mdl-shadow--2dp section-card" style="width: 100%;">
+                        <div class="mdl-card__title mdl-color--primary mdl-color-text--white">
+                            <h2 class="mdl-card__title-text">🖥️ Кассовые аппараты (<span id="registersCount">0</span>)</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text" style="padding-left: 64px;">
+                            <div id="cashRegistersSection">
+                                <p>Загрузка...</p>
+                            </div>
+                        </div>
+                        <div class="mdl-card__actions mdl-card--border">
+                            <button class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addRegisterBtn">
+                                <i class="material-icons">add</i>
+                                Добавить кассу
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Дедлайны по кассам -->
+            <div class="mdl-grid">
+                <div class="mdl-cell mdl-cell--12-col">
+                    <div class="mdl-card mdl-shadow--2dp section-card" style="width: 100%;">
+                        <div class="mdl-card__title mdl-color--accent mdl-color-text--white">
+                            <h2 class="mdl-card__title-text">⏰ Дедлайны по кассам (<span id="registerDeadlinesCount">0</span>)</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text" id="registerDeadlinesSection">
+                            <p>Загрузка...</p>
+                        </div>
+                        <div class="mdl-card__actions mdl-card--border">
+                            <button class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addRegisterDeadlineBtn">
+                                <i class="material-icons">add</i>
+                                Добавить дедлайн по кассам
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Общие дедлайны -->
+            <div class="mdl-grid">
+                <div class="mdl-cell mdl-cell--12-col">
+                    <div class="mdl-card mdl-shadow--2dp section-card" style="width: 100%;">
+                        <div class="mdl-card__title" style="background-color: #4caf50; color: white;">
+                            <h2 class="mdl-card__title-text">📅 Общие дедлайны (<span id="generalDeadlinesCount">0</span>)</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text" id="generalDeadlinesSection">
+                            <p>Загрузка...</p>
+                        </div>
+                        <div class="mdl-card__actions mdl-card--border">
+                            <button class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" id="addDeadlineBtn">
+                                <i class="material-icons">add</i>
+                                Добавить дедлайн
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно: Добавить/Редактировать кассовый аппарат -->
+    <dialog class="mdl-dialog" id="registerDialog" style="width: 500px;">
+        <h4 class="mdl-dialog__title" id="registerDialogTitle">Добавить кассовый аппарат</h4>
+        <div class="mdl-dialog__content">
+            <form id="registerForm">
+                <input type="hidden" id="registerId">
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <input class="mdl-textfield__input" type="text" id="registerName" required>
+                    <label class="mdl-textfield__label" for="registerName">Название кассы *</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <input class="mdl-textfield__input" type="text" id="serialNumber" required>
+                    <label class="mdl-textfield__label" for="serialNumber">Серийный номер ККТ *</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <input class="mdl-textfield__input" type="text" id="fiscalDriveNumber" required>
+                    <label class="mdl-textfield__label" for="fiscalDriveNumber">Номер ФН *</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <input class="mdl-textfield__input" type="text" id="installationAddress">
+                    <label class="mdl-textfield__label" for="installationAddress">Адрес установки</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <select class="mdl-textfield__input" id="ofdProvider" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Не выбран</option>
+                    </select>
+                    <label class="mdl-textfield__label" for="ofdProvider" style="top: -20px;">Наименование ОФД</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <textarea class="mdl-textfield__input" id="registerNotes" rows="3"></textarea>
+                    <label class="mdl-textfield__label" for="registerNotes">Примечание</label>
+                </div>
+            </form>
+        </div>
+        <div class="mdl-dialog__actions">
+            <button type="button" class="mdl-button mdl-button--colored" id="saveRegisterBtn">Сохранить</button>
+            <button type="button" class="mdl-button close" id="closeRegisterDialog">Отмена</button>
+        </div>
+    </dialog>
+
+    <!-- Модальное окно: Добавить дедлайн -->
+    <dialog class="mdl-dialog" id="deadlineDialog" style="width: 500px;">
+        <h4 class="mdl-dialog__title" id="deadlineDialogTitle">Добавить дедлайн</h4>
+        <div class="mdl-dialog__content">
+            <form id="deadlineForm">
+                <input type="hidden" id="deadlineId">
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <select class="mdl-textfield__input" id="deadlineType" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Выберите тип дедлайна</option>
+                    </select>
+                    <label class="mdl-textfield__label" for="deadlineType" style="top: -20px;">Тип дедлайна *</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%; margin-top: 20px;">
+                    <select class="mdl-textfield__input" id="deadlineCashRegister" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Общий дедлайн (не привязан к кассе)</option>
+                    </select>
+                    <label class="mdl-textfield__label" for="deadlineCashRegister" style="top: -20px;">Кассовый аппарат</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%; margin-top: 20px;">
+                    <input class="mdl-textfield__input" type="date" id="deadlineExpiration" required>
+                    <label class="mdl-textfield__label" for="deadlineExpiration">Дата истечения *</label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%; margin-top: 20px;">
+                    <input class="mdl-textfield__input" type="number" id="deadlineNotifyDays" min="1" value="7" required>
+                    <label class="mdl-textfield__label" for="deadlineNotifyDays">Уведомлять за (дней) *</label>
+                </div>
+                <div style="margin: 20px 0;">
+                    <label class="mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="deadlineNotificationEnabled">
+                        <input type="checkbox" id="deadlineNotificationEnabled" class="mdl-checkbox__input" checked>
+                        <span class="mdl-checkbox__label">Включить уведомления</span>
+                    </label>
+                </div>
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                    <textarea class="mdl-textfield__input" id="deadlineNotes" rows="3"></textarea>
+                    <label class="mdl-textfield__label" for="deadlineNotes">Примечания</label>
+                </div>
+            </form>
+        </div>
+        <div class="mdl-dialog__actions">
+            <button type="button" class="mdl-button mdl-button--colored" id="saveDeadlineBtn">Сохранить</button>
+            <button type="button" class="mdl-button close" id="closeDeadlineDialog">Отмена</button>
+        </div>
+    </dialog>
+
+    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/client-details.js"></script>
+</body>
+</html>

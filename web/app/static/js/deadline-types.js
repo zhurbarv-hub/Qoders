@@ -75,7 +75,7 @@ function renderDeadlineTypesTable(types) {
                             : type.type_name;
                         
                         return `
-                        <tr>
+                        <tr data-type-id="${type.id}">
                             <td class="mdl-data-table__cell--non-numeric"><strong>${displayName}</strong></td>
                             <td>
                                 <span style="background: ${type.is_active ? '#d4edda' : '#f8d7da'}; 
@@ -86,9 +86,6 @@ function renderDeadlineTypesTable(types) {
                             </td>
                             ${isAdmin ? `
                             <td>
-                                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="editDeadlineType(${type.id})" title="Редактировать">
-                                    <i class="material-icons">edit</i>
-                                </button>
                                 <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteDeadlineType(${type.id})" title="Удалить" style="color: #f44336;">
                                     <i class="material-icons">delete</i>
                                 </button>
@@ -115,6 +112,23 @@ function renderDeadlineTypesTable(types) {
     if (typeof componentHandler !== 'undefined') {
         componentHandler.upgradeDom();
     }
+    
+    // Добавляем обработчик клика на строки для редактирования
+    setTimeout(() => {
+        const rows = document.querySelectorAll('#deadline-types-section tbody tr');
+        rows.forEach(row => {
+            const typeId = row.getAttribute('data-type-id');
+            if (typeId) {
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', function(e) {
+                    // Проверяем, что клик не по кнопке удаления
+                    if (!e.target.closest('button') && !e.target.closest('.mdl-button')) {
+                        editDeadlineType(parseInt(typeId));
+                    }
+                });
+            }
+        });
+    }, 100);
 }
 
 /**
@@ -300,9 +314,31 @@ async function submitDeadlineTypeForm(event, mode, typeId) {
  * Закрытие модального окна типа услуги
  */
 function closeDeadlineTypeModal(element) {
-    const overlay = element.closest('.modal-overlay');
+    // Ищем overlay - либо через closest, либо через document
+    let overlay = null;
+    
+    if (element && element.closest) {
+        overlay = element.closest('.modal-overlay');
+    }
+    
+    // Если не нашли через closest, ищем в document
+    if (!overlay) {
+        overlay = document.querySelector('.modal-overlay');
+    }
+    
     if (overlay) {
-        overlay.querySelector('.modal').classList.remove('show');
+        // Проверяем, не закрывается ли уже модальное окно
+        if (overlay.dataset.closing === 'true') {
+            return; // Уже закрывается, не делаем ничего
+        }
+        
+        // Отмечаем, что началось закрытие
+        overlay.dataset.closing = 'true';
+        
+        const modal = overlay.querySelector('.modal');
+        if (modal) {
+            modal.classList.remove('show');
+        }
         setTimeout(() => overlay.remove(), 300);
     }
 }

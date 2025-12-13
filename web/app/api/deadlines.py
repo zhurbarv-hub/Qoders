@@ -92,6 +92,7 @@ async def get_deadlines(
     page_size: int = Query(50, ge=1, le=100, description="Количество записей на странице"),
     client_id: Optional[int] = Query(None, description="Фильтр по клиенту"),
     deadline_type_id: Optional[int] = Query(None, description="Фильтр по типу дедлайна"),
+    cash_register_id: Optional[int] = Query(None, description="Фильтр по кассовому аппарату"),
     status: Optional[str] = Query(None, description="Фильтр по статусу"),
     date_from: Optional[date] = Query(None, description="Дата от"),
     date_to: Optional[date] = Query(None, description="Дата до"),
@@ -114,6 +115,9 @@ async def get_deadlines(
         
         if deadline_type_id:
             query = query.filter(Deadline.deadline_type_id == deadline_type_id)
+        
+        if cash_register_id:
+            query = query.filter(Deadline.cash_register_id == cash_register_id)
         
         if status:
             query = query.filter(Deadline.status == status)

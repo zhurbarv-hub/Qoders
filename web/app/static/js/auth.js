@@ -1,8 +1,26 @@
 // API URL
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://localhost:8001/api';
 
-// Форма входа
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
+// Утилитарные функции для работы с токеном
+function getToken() {
+    return localStorage.getItem('access_token');
+}
+
+function getCurrentUser() {
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
+}
+
+function logout() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
+    window.location.href = '/static/login.html';
+}
+
+// Форма входа (только для страницы логина)
+const loginForm = document.getElementById('loginForm');
+if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const username = document.getElementById('username').value;
@@ -59,3 +77,4 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         spinner.style.display = 'none';
     }
 });
+}

@@ -78,6 +78,62 @@ class ClientListResponse(BaseModel):
     total_pages: int
 
 
+class CashRegisterShort(BaseModel):
+    """Краткая информация о кассовом аппарате"""
+    id: int
+    serial_number: str
+    fiscal_drive_number: str
+    register_name: str
+    installation_address: Optional[str] = None
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
+
+
+class DeadlineShortForClient(BaseModel):
+    """Краткая информация о дедлайне для клиента"""
+    id: int
+    deadline_type_name: str
+    expiration_date: date
+    days_until_expiration: int
+    status_color: str
+    notes: Optional[str] = None
+    cash_register_id: Optional[int] = None
+    cash_register_name: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class ClientFullDetailsResponse(BaseModel):
+    """Полная детализация клиента с кассами и дедлайнами"""
+    # Базовая информация о клиенте
+    id: int
+    name: str
+    inn: str
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    # Кассовые аппараты
+    cash_registers: List[CashRegisterShort] = []
+    
+    # Дедлайны по кассам
+    register_deadlines: List[DeadlineShortForClient] = []
+    
+    # Общие дедлайны (не привязанные к кассам)
+    general_deadlines: List[DeadlineShortForClient] = []
+    
+    class Config:
+        from_attributes = True
+
+
 # ============================================
 # СХЕМЫ ДЛЯ ТИПОВ ДЕДЛАЙНОВ
 # ============================================
@@ -112,6 +168,7 @@ class DeadlineBase(BaseModel):
     """Базовая схема дедлайна"""
     client_id: int = Field(..., gt=0, description="ID клиента")
     deadline_type_id: int = Field(..., gt=0, description="ID типа дедлайна")
+    cash_register_id: Optional[int] = Field(None, description="ID кассового аппарата (опционально)")
     expiration_date: date = Field(..., description="Дата истечения")
     status: str = Field("active", pattern="^(active|expired|cancelled)$", description="Статус")
     notes: Optional[str] = Field(None, description="Примечания")
@@ -125,6 +182,7 @@ class DeadlineCreate(DeadlineBase):
 class DeadlineUpdate(BaseModel):
     """Схема для обновления дедлайна"""
     deadline_type_id: Optional[int] = Field(None, gt=0)
+    cash_register_id: Optional[int] = None
     expiration_date: Optional[date] = None
     status: Optional[str] = Field(None, pattern="^(active|expired|cancelled)$")
     notes: Optional[str] = None
@@ -165,6 +223,7 @@ class DeadlineDetailResponse(BaseModel):
     id: int
     client_id: Optional[int] = None
     deadline_type_id: Optional[int] = None
+    cash_register_id: Optional[int] = None
     expiration_date: date
     status: str
     notes: Optional[str] = None

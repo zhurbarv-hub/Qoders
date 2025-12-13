@@ -59,6 +59,7 @@ class Deadline(Base):
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)  # Новое поле
     client_id = Column(Integer, ForeignKey('clients.id', ondelete='CASCADE'), nullable=True, index=True)  # Старое поле (для совместимости)
     deadline_type_id = Column(Integer, ForeignKey('deadline_types.id'), nullable=False, index=True)
+    cash_register_id = Column(Integer, ForeignKey('cash_registers.id', ondelete='CASCADE'), nullable=True, index=True)  # Связь с кассовым аппаратом
     expiration_date = Column(Date, nullable=False, index=True)
     status = Column(String(20), nullable=False, default='active', index=True)
     notes = Column(Text)
@@ -69,6 +70,7 @@ class Deadline(Base):
     # user = relationship("User", back_populates="deadlines")  # Пока не используем, чтобы избежать циркулярных импортов
     client = relationship("Client", back_populates="deadlines")  # Старая связь
     deadline_type = relationship("DeadlineType", back_populates="deadlines")
+    cash_register = relationship("CashRegister", back_populates="deadlines")  # Новая связь
     notification_logs = relationship("NotificationLog", back_populates="deadline", cascade="all, delete-orphan")
     
     def __repr__(self):

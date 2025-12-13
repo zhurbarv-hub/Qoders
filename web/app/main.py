@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # ОТНОСИТЕЛЬНЫЕ ИМПОРТЫ
 from .config import settings
-from .api import auth, clients, deadline_types, deadlines, dashboard, export, users
+from .api import auth, clients, deadline_types, deadlines, dashboard, export, users, cash_registers, ofd_providers
 
 # Настройка логирования
 logging.basicConfig(
@@ -60,6 +60,8 @@ app.include_router(deadlines.router)
 app.include_router(dashboard.router)
 app.include_router(export.router)
 app.include_router(users.router)
+app.include_router(cash_registers.router)
+app.include_router(ofd_providers.router)
 
 # Путь к статическим файлам
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -80,13 +82,15 @@ async def startup_event():
     logger.info(f"🌐 CORS origins: {settings.cors_origins}")
     logger.info(f"🔐 JWT срок действия: {settings.access_token_expire_minutes} минут")
     logger.info(f"📡 API endpoints:")
-    logger.info(f"  - /api/auth (Authentication)")
-    logger.info(f"  - /api/users (User Management)")
-    logger.info(f"  - /api/clients (Clients)")
-    logger.info(f"  - /api/deadline-types (Deadline Types)")
-    logger.info(f"  - /api/deadlines (Deadlines)")
-    logger.info(f"  - /api/dashboard (Dashboard)")
-    logger.info(f"  - /api/export (Data Export)")
+    logger.info(f"  - /api/auth (Authentication)")
+    logger.info(f"  - /api/users (User Management)")
+    logger.info(f"  - /api/clients (Clients)")
+    logger.info(f"  - /api/deadline-types (Deadline Types)")
+    logger.info(f"  - /api/deadlines (Deadlines)")
+    logger.info(f"  - /api/cash-registers (Cash Registers)")
+    logger.info(f"  - /api/ofd-providers (OFD Providers)")
+    logger.info(f"  - /api/dashboard (Dashboard)")
+    logger.info(f"  - /api/export (Data Export)")
 
 
 @app.on_event("shutdown")

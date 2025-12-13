@@ -14,6 +14,8 @@ import string
 
 from ..dependencies import get_db
 from ..models.user import User
+from ..models.client import Deadline
+from ..models.cash_register import CashRegister
 from ..models.user_schemas import (
     UserCreateByAdmin,
     UserUpdate,
@@ -526,3 +528,108 @@ async def register_telegram(
         email=user.email,
         company_name=user.company_name
     )
+
+
+@router.get("/{user_id}/full-details")
+async def get_user_full_details(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Получить полную детализацию пользователя (клиента) с кассами и дедлайнами
+    """
+    from datetime import date
+    
+    # Получить пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Пользователь с ID {user_id} не найден"
+        )
+    
+    # Получить кассовые аппараты
+    cash_registers = db.query(CashRegister).filter(
+        CashRegister.user_id == user_id,
+        CashRegister.is_active == True
+    ).order_by(CashRegister.register_name).all()
+    
+    # Получить дедлайны
+    deadlines = db.query(Deadline).filter(
+        Deadline.user_id == user_id
+    ).order_by(Deadline.expiration_date).all()
+    
+    today = date.today()
+    
+    # Разделить дедлайны на две группы
+    register_deadlines = []
+    general_deadlines = []
+    
+    for deadline in deadlines:
+        days_diff = (deadline.expiration_date - today).days
+        
+        # Определение цвета
+        if days_diff < 0:
+            status_color = "red"
+        elif days_diff <= 7:
+            status_color = "red"
+        elif days_diff <= 14:
+            status_color = "orange"
+        elif days_diff <= 30:
+            status_color = "yellow"
+        else:
+            status_color = "green"
+        
+        deadline_data = {
+            "id": deadline.id,
+            "deadline_type_name": deadline.deadline_type.type_name if deadline.deadline_type else "Неизвестно",
+            "expiration_date": deadline.expiration_date,
+            "days_until_expiration": days_diff,
+            "status_color": status_color,
+            "notes": deadline.notes,
+            "cash_register_id": deadline.cash_register_id
+        }
+        
+        if deadline.cash_register_id:
+            # Найти кассу
+            register = next((r for r in cash_registers if r.id == deadline.cash_register_id), None)
+            deadline_data["cash_register_name"] = register.register_name if register else f"Касса #{deadline.cash_register_id}"
+            deadline_data["installation_address"] = register.installation_address if register else None
+            deadline_data["deadline_id"] = deadline.id
+            register_deadlines.append(deadline_data)
+        else:
+            deadline_data["cash_register_name"] = None
+            deadline_data["installation_address"] = None
+            deadline_data["deadline_id"] = deadline.id
+            general_deadlines.append(deadline_data)
+    
+    # Формирование ответа
+    return {
+        "id": user.id,
+        "name": user.company_name or user.full_name,
+        "inn": user.inn,
+        "contact_person": user.full_name,
+        "phone": user.phone,
+        "email": user.email,
+        "address": user.address,
+        "notes": user.notes,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "cash_registers": [
+            {
+                "id": reg.id,
+                "serial_number": reg.serial_number,
+                "fiscal_drive_number": reg.fiscal_drive_number,
+                "register_name": reg.register_name,
+                "installation_address": reg.installation_address,
+                "ofd_provider_id": reg.ofd_provider_id,
+                "notes": reg.notes,
+                "is_active": reg.is_active
+            }
+            for reg in cash_registers
+        ],
+        "register_deadlines": register_deadlines,
+        "general_deadlines": general_deadlines
+    }

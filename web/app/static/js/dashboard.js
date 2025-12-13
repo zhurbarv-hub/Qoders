@@ -3,6 +3,10 @@ if (typeof API_BASE_URL === 'undefined') {
     var API_BASE_URL = window.location.origin + '/api';
 }
 
+// Глобальные переменные для хранения экземпляров графиков
+let statusChartInstance = null;
+let typeChartInstance = null;
+
 // Проверка авторизации при загрузке страницы
 document.addEventListener('DOMContentLoaded', async () => {
     const token = localStorage.getItem('access_token');
@@ -90,6 +94,8 @@ async function loadDashboardData() {
 
         if (!summaryResponse.ok) {
             console.error('❌ Ошибка загрузки статистики:', summaryResponse.status);
+            console.error('❌ URL запроса:', `${API_BASE_URL}/dashboard/stats`);
+            console.error('❌ Полный URL:', summaryResponse.url);
             if (summaryResponse.status === 401) {
                 console.log('🚫 Неавторизован, перенаправление на логин');
                 handleLogout();
@@ -97,6 +103,7 @@ async function loadDashboardData() {
             }
             const errorText = await summaryResponse.text();
             console.error('❌ Текст ошибки:', errorText);
+            showError(`Не удалось загрузить данные дашборда: ${summaryResponse.status} - ${errorText}`);
             throw new Error(`Ошибка загрузки данных: ${summaryResponse.status}`);
         }
 
@@ -129,7 +136,9 @@ async function loadDashboardData() {
     } catch (error) {
         console.error('❌ Ошибка при загрузке данных дашборда:', error);
         console.error('❌ Stack trace:', error.stack);
-        showError('Не удалось загрузить данные дашборда');
+        console.error('❌ Тип ошибки:', error.name);
+        console.error('❌ Сообщение:', error.message);
+        showError(`Не удалось отобразить данные дашборда: ${error.message}`);
     }
 }
 
@@ -162,6 +171,12 @@ function renderStatusChart(data) {
     const ctx = document.getElementById('statusChart');
     if (!ctx) return;
 
+    // Уничтожаем предыдущий график, если он существует
+    if (statusChartInstance) {
+        statusChartInstance.destroy();
+        statusChartInstance = null;
+    }
+
     const chartData = {
         labels: [
             `Норма (>${14} дн.)`,
@@ -192,7 +207,7 @@ function renderStatusChart(data) {
         }]
     };
 
-    new Chart(ctx, {
+    statusChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: chartData,
         options: {
@@ -218,6 +233,12 @@ function renderStatusChart(data) {
 function renderTypeChart(typeStats) {
     const ctx = document.getElementById('typeChart');
     if (!ctx) return;
+
+    // Уничтожаем предыдущий график, если он существует
+    if (typeChartInstance) {
+        typeChartInstance.destroy();
+        typeChartInstance = null;
+    }
 
     // Если данные пришли как массив типов, а не статистика,
     // просто показываем названия типов
@@ -264,7 +285,7 @@ function renderTypeChart(typeStats) {
         }]
     };
 
-    new Chart(ctx, {
+    typeChartInstance = new Chart(ctx, {
         type: 'bar',
         data: data,
         options: {

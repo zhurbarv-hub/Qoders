@@ -107,12 +107,6 @@ function renderUsersTable(users) {
                                     </span>
                                 </td>
                                 <td class="mdl-data-table__cell--non-numeric">
-                                    <button class="mdl-button mdl-js-button mdl-button--icon" onclick="viewUser(${user.id})" title="Просмотр">
-                                        <i class="material-icons">visibility</i>
-                                    </button>
-                                    <button class="mdl-button mdl-js-button mdl-button--icon" onclick="editUser(${user.id})" title="Редактировать">
-                                        <i class="material-icons">edit</i>
-                                    </button>
                                     ${user.is_active ? `
                                         <button class="mdl-button mdl-js-button mdl-button--icon" 
                                                 onclick="toggleUserStatus(${user.id}, '${(user.company_name || user.full_name || '').replace(/'/g, "\\'")}')"
@@ -142,6 +136,22 @@ function renderUsersTable(users) {
     
     usersSection.innerHTML = tableHTML;
     
+    // Добавление обработчиков клика на строки таблицы
+    setTimeout(() => {
+        const tableRows = document.querySelectorAll('#users-table-body tr');
+        tableRows.forEach((row, index) => {
+            if (users[index]) {
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', function(e) {
+                    // Проверяем, что клик не по кнопке действия
+                    if (!e.target.closest('button') && !e.target.closest('.mdl-button')) {
+                        viewUserDetails(users[index].id);
+                    }
+                });
+            }
+        });
+    }, 100);
+    
     // Инициализация MDL компонентов
     if (typeof componentHandler !== 'undefined') {
         componentHandler.upgradeDom();
@@ -161,6 +171,11 @@ function renderUsersPagination(data) {
 }
 
 // Функции для работы с клиентами
+function viewUserDetails(userId) {
+    // Переход на страницу деталей клиента с кассами и дедлайнами
+    window.location.href = `/static/client-details.html?id=${userId}`;
+}
+
 function showAddUserModal() {
     const modal = createUserModal('add');
     document.body.appendChild(modal);
