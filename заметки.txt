@@ -1,4 +1,0 @@
-Реализуй Telegram бота для проекта ККТ согласно дизайну из файла 
-.qoder/quests/transfer-kkt-project-to-vds.md (раздел APPENDIX: Phase 3).
-Следуй детальному 10-шаговому плану реализации.
-Назови фазу прогресса "TG-bot phase".
