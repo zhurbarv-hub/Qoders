@@ -16,7 +16,7 @@ class WebSettings:
     access_token_expire_minutes: int = 480  # 8 часов
     
     # База данных
-    database_url: str = "sqlite:///database/kkt_services.db"
+    database_url: str = os.getenv("DATABASE_URL", "sqlite:///database/kkt_services.db")
     
     # Сервер
     host: str = "0.0.0.0"

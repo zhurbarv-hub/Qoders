@@ -78,7 +78,7 @@ else:
 async def startup_event():
     """Действия при запуске приложения"""
     logger.info("🚀 FastAPI приложение запущено!")
-    logger.info(f"📊 База данных: {settings.get_database_url()}")
+    logger.info(f"📊 База данных: {settings.database_url}")
     logger.info(f"🌐 CORS origins: {settings.cors_origins}")
     logger.info(f"🔐 JWT срок действия: {settings.access_token_expire_minutes} минут")
     logger.info(f"📡 API endpoints:")
