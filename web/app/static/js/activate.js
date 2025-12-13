@@ -1,5 +1,5 @@
 // Константы API
-const API_BASE_URL = 'http://localhost:8001/api';
+const API_BASE_URL = 'http://localhost:8000/api';
 
 // Получение токена из URL
 const urlParams = new URLSearchParams(window.location.search);

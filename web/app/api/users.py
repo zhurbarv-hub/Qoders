@@ -70,7 +70,7 @@ def check_admin_role(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
-def generate_registration_code(length: int = 8) -> str:
+def generate_registration_code(length: int = 6) -> str:
     """Генерация уникального кода регистрации для Telegram"""
     chars = string.ascii_uppercase + string.digits
     return ''.join(secrets.choice(chars) for _ in range(length))
@@ -214,7 +214,7 @@ async def create_user(
             existing_code = db.query(User).filter(User.registration_code == code).first()
             if not existing_code:
                 registration_code = code
-                code_expires_at = datetime.now() + timedelta(hours=24)
+                code_expires_at = datetime.now() + timedelta(hours=72)
                 break
         
         if not registration_code:
@@ -393,6 +393,66 @@ async def delete_user(
     )
 
 
+@router.post("/{user_id}/generate-code", response_model=MessageResponse)
+async def generate_telegram_code(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(check_admin_or_manager_role)
+):
+    """
+    Генерация кода регистрации для привязки Telegram аккаунта
+    Доступно для администраторов и менеджеров
+    """
+    # Поиск пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Пользователь с ID {user_id} не найден"
+        )
+    
+    # Проверка - только для клиентов
+    if user.role != 'client':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Только клиенты могут привязывать Telegram аккаунт"
+        )
+    
+    # Проверка - не привязан ли уже Telegram
+    if user.telegram_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Telegram уже привязан к этому пользователю (@{user.telegram_username})"
+        )
+    
+    # Генерация уникального кода
+    code = None
+    for _ in range(10):
+        code = generate_registration_code()
+        existing_code = db.query(User).filter(User.registration_code == code).first()
+        if not existing_code:
+            break
+        code = None
+    
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не удалось сгенерировать уникальный код регистрации"
+        )
+    
+    # Сохранение кода с датой истечения (72 часа - как в боте)
+    user.registration_code = code
+    user.code_expires_at = datetime.now() + timedelta(hours=72)
+    db.commit()
+    db.refresh(user)
+    
+    return MessageResponse(
+        message=f"Код регистрации: {code} (действителен 72 часа)",
+        id=user.id
+    )
+
+
 @router.post("/resend-invitation", response_model=InvitationResponse)
 async def resend_invitation(
     request: ResendInvitationRequest,
@@ -428,7 +488,7 @@ async def resend_invitation(
             existing_code = db.query(User).filter(User.registration_code == code).first()
             if not existing_code:
                 registration_code = code
-                code_expires_at = datetime.now() + timedelta(hours=24)
+                code_expires_at = datetime.now() + timedelta(hours=72)
                 user.registration_code = registration_code
                 user.code_expires_at = code_expires_at
                 db.commit()
@@ -615,6 +675,8 @@ async def get_user_full_details(
         "address": user.address,
         "notes": user.notes,
         "is_active": user.is_active,
+        "telegram_id": user.telegram_id,
+        "telegram_username": user.telegram_username,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "cash_registers": [

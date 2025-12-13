@@ -53,6 +53,11 @@ class Settings(BaseSettings):
         description="Telegram ID администраторов (через запятую)"
     )
     
+    telegram_manager_ids: str = Field(
+        default="",
+        description="Telegram ID менеджеров (через запятую)"
+    )
+    
     # ============================================
     # Notification Settings
     # ============================================
@@ -84,6 +89,29 @@ class Settings(BaseSettings):
     notification_retry_delay: int = Field(
         default=300,
         description="Задержка между попытками отправки (секунды)"
+    )
+    
+    # ============================================
+    # Client Authorization Settings
+    # ============================================
+    registration_code_length: int = Field(
+        default=6,
+        description="Длина кода регистрации клиента"
+    )
+    
+    registration_code_expiry_hours: int = Field(
+        default=72,
+        description="Срок действия кода регистрации (часы)"
+    )
+    
+    notification_include_admins: bool = Field(
+        default=True,
+        description="Отправлять уведомления администраторам"
+    )
+    
+    admin_summary_enabled: bool = Field(
+        default=True,
+        description="Отправлять ежедневную сводку администраторам"
     )
     
     alert_threshold_days: int = Field(
@@ -199,6 +227,22 @@ class Settings(BaseSettings):
             int(admin_id.strip()) 
             for admin_id in self.telegram_admin_ids.split(",") 
             if admin_id.strip()
+        ]
+    
+    @property
+    def telegram_manager_ids_list(self) -> List[int]:
+        """
+        Преобразование строки ID менеджеров в список целых чисел
+        
+        Returns:
+            List[int]: Список Telegram ID менеджеров
+        """
+        if not self.telegram_manager_ids:
+            return []
+        return [
+            int(manager_id.strip()) 
+            for manager_id in self.telegram_manager_ids.split(",") 
+            if manager_id.strip()
         ]
     
     class Config:

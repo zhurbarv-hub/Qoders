@@ -14,10 +14,9 @@ from bot.middlewares.auth import AuthMiddleware
 from bot.middlewares.logging import LoggingMiddleware
 
 # Импорт обработчиков
-from bot.handlers import common, admin, deadlines
+from bot.handlers import common, admin, deadlines, registration
 from bot.handlers import settings as settings_handler
-from bot.handlers import search
-from bot.handlers import client_management, deadline_management, crud_conversations, export
+from bot.handlers import search, export
 
 from bot.scheduler import setup_scheduler
 from backend.database import SessionLocal
@@ -57,11 +56,14 @@ def create_bot() -> Bot:
 def create_dispatcher() -> Dispatcher:
     """
     Создание диспетчера для обработки обновлений
+    Инициализирует FSM storage для работы с состояниями
     
     Returns:
         Dispatcher: Настроенный диспетчер
     """
-    return Dispatcher()
+    from aiogram.fsm.storage.memory import MemoryStorage
+    storage = MemoryStorage()
+    return Dispatcher(storage=storage)
 
 
 async def create_api_client() -> WebAPIClient:
@@ -130,7 +132,6 @@ def register_handlers(dp: Dispatcher):
     """
     # ВАЖНО: Порядок регистрации имеет значение!
     # Роутеры с КОМАНДАМИ должны быть ПЕРВЫМИ
-    # Роутеры с широкими обработчиками (F.text) - ПОСЛЕДНИМИ
     
     # 1. Команды (обрабатываются первыми)
     dp.include_router(common.router)                 # /start, /help
@@ -138,16 +139,10 @@ def register_handlers(dp: Dispatcher):
     dp.include_router(deadlines.router)              # /list, /today, /week, /next
     dp.include_router(search.router)                 # /search
     dp.include_router(settings_handler.router)       # /settings
-    
-    # 2. CRUD команды (тоже команды, но создают диалоги)
-    # 2. CRUD команды (создают диалоги)
-    dp.include_router(client_management.router)      # /addclient, /editclient, /deleteclient
-    dp.include_router(deadline_management.router)    # /adddeadline, /editdeadline, /deletedeadline
-    
-    # 3. Обработчик диалогов
-    dp.include_router(crud_conversations.router)     # Обработка текстовых сообщений для всех CRUD
-    
     dp.include_router(export.router)                 # /export + callbacks
+    
+    # 2. Регистрация клиентов (обработка FSM состояний)
+    dp.include_router(registration.router)           # Авторизация клиентов
     
     logger.info("✅ Обработчики команд зарегистрированы:")
     logger.info("   - common (общие команды)")
@@ -155,9 +150,6 @@ def register_handlers(dp: Dispatcher):
     logger.info("   - deadlines (просмотр дедлайнов)")
     logger.info("   - search (поиск)")
     logger.info("   - settings (настройки)")
-    logger.info("   - client_management (CRUD клиентов - команды)")
-    logger.info("   - deadline_management (CRUD дедлайнов - команды)")
-    logger.info("   - crud_conversations (обработка диалогов)")
     logger.info("   - export (экспорт данных)")
 
 
@@ -203,12 +195,10 @@ async def main():
         logger.info(f"🔌 Web API: {settings.web_api_base_url}")
         logger.info("=" * 60)
         logger.info("📋 Доступные команды:")
-        logger.info("   Общие: /start, /help, /next, /list, /today, /week")
-        logger.info("   Поиск: /search")
-        logger.info("   Управление (админ): /addclient, /editclient, /deleteclient")
-        logger.info("   Дедлайны: /adddeadline, /editdeadline, /deletedeadline")
-        logger.info("   Экспорт: /export")
-        logger.info("   Система (админ): /status, /check, /health")
+        logger.info("Общие: /start, /help, /next, /list, /today, /week")
+        logger.info("Поиск: /search")
+        logger.info("Экспорт: /export")
+        logger.info("Система (админ): /status, /check, /health")
         logger.info("=" * 60)
         logger.info("✅ Бот готов к работе! Нажмите Ctrl+C для остановки")
         logger.info("=" * 60)

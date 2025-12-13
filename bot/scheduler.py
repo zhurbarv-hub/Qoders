@@ -118,6 +118,104 @@ async def scheduled_deadline_check(bot: Bot, db_session: Session, api_client: We
             pass
 
 
+async def send_admin_daily_summary(bot: Bot, db_session: Session):
+    """
+    НОВАЯ ФУНКЦИЯ: Отправка ежедневной сводки администраторам и менеджерам
+    Содержит статистику по дедлайнам и ближайшим истекающим дедлайнам
+    
+    Args:
+        bot: Экземпляр бота
+        db_session: Сессия базы данных
+    """
+    if not settings.admin_summary_enabled:
+        logger.info("⏭️ Ежедневная сводка отключена в настройках")
+        return
+    
+    logger.info("📊 Генерация ежедневной сводки...")
+    
+    try:
+        from backend.models import User, Deadline, DeadlineType
+        from datetime import date, timedelta
+        
+        summary_text = "🕒 <b>Ежедневная сводка</b>\n\n"
+        
+        # Основная статистика
+        active_deadlines = db_session.query(Deadline).filter(
+            Deadline.status == 'active'
+        ).all()
+        
+        today = date.today()
+        green_count = 0
+        yellow_count = 0
+        red_count = 0
+        expired_count = 0
+        
+        for deadline in active_deadlines:
+            days_remaining = (deadline.expiration_date - today).days
+            if days_remaining < 0:
+                expired_count += 1
+            elif days_remaining < 7:
+                red_count += 1
+            elif days_remaining < 14:
+                yellow_count += 1
+            else:
+                green_count += 1
+        
+        summary_text += "🚦 <b>Статус дедлайнов:</b>\n"
+        summary_text += f"   🟢 Безопасно (&gt;14 дней): <b>{green_count}</b>\n"
+        summary_text += f"   🟡 Внимание (7-14 дней): <b>{yellow_count}</b>\n"
+        summary_text += f"   🔴 Критично (&lt;7 дней): <b>{red_count}</b>\n"
+        if expired_count > 0:
+            summary_text += f"   ❌ Просроченные: <b>{expired_count}</b>\n"
+        summary_text += "\n"
+        
+        # Ближайшие дедлайны (7 дней)
+        upcoming_date = today + timedelta(days=7)
+        upcoming = db_session.query(Deadline).join(
+            User, Deadline.user_id == User.id
+        ).join(
+            DeadlineType, Deadline.deadline_type_id == DeadlineType.id
+        ).filter(
+            Deadline.status == 'active',
+            Deadline.expiration_date >= today,
+            Deadline.expiration_date <= upcoming_date
+        ).order_by(Deadline.expiration_date).limit(5).all()
+        
+        if upcoming:
+            summary_text += "⏰ <b>Ближайшие дедлайны (7 дней):</b>\n"
+            for d in upcoming:
+                days_left = (d.expiration_date - today).days
+                emoji = '🔴' if days_left < 7 else '🟡'
+                summary_text += f"   {emoji} {d.user.company_name}: {d.deadline_type.type_name} - {d.expiration_date.strftime('%d.%m')} ({days_left} дн.)\n"
+            summary_text += "\n"
+        
+        # Временная метка
+        summary_text += f"📅 <b>Дата:</b> {today.strftime('%d.%m.%Y')}\n"
+        summary_text += f"⏰ <b>Время:</b> {datetime.now().strftime('%H:%M')}"
+        
+        # Отправляем админам и менеджерам
+        recipients = [settings.telegram_admin_id]
+        recipients.extend(settings.telegram_manager_ids_list)
+        
+        for recipient_id in recipients:
+            try:
+                await bot.send_message(
+                    chat_id=recipient_id,
+                    text=summary_text,
+                    parse_mode='HTML'
+                )
+                logger.info(f"✅ Сводка отправлена пользователю {recipient_id}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка отправки сводки пользователю {recipient_id}: {e}")
+        
+        logger.info("✅ Ежедневная сводка отправлена")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при генерации ежедневной сводки: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
 def setup_scheduler(bot: Bot, db_session: Session, api_client: WebAPIClient = None) -> AsyncIOScheduler:
     """
     Настройка и запуск планировщика задач
@@ -154,6 +252,25 @@ def setup_scheduler(bot: Bot, db_session: Session, api_client: WebAPIClient = No
         replace_existing=True
     )
     
+    # Добавляем задачу ежедневной сводки (если включено)
+    if settings.admin_summary_enabled:
+        # Сводка отправляется утром в 9:00
+        summary_trigger = CronTrigger(
+            hour=9,
+            minute=0,
+            timezone=settings.notification_timezone
+        )
+        
+        scheduler.add_job(
+            send_admin_daily_summary,
+            trigger=summary_trigger,
+            args=[bot, db_session],
+            id='daily_summary',
+            name='Ежедневная сводка',
+            replace_existing=True
+        )
+        logger.info("📊 Ежедневная сводка включена: отправка каждый день в 09:00 ({settings.notification_timezone})")
+    
     logger.info(
         f"📅 Планировщик настроен: проверка каждый день в {settings.notification_check_time} "
         f"({settings.notification_timezone})"
@@ -169,4 +286,4 @@ def setup_scheduler(bot: Bot, db_session: Session, api_client: WebAPIClient = No
 
 
 # Экспорт функций
-__all__ = ['setup_scheduler', 'scheduled_deadline_check']
+__all__ = ['setup_scheduler', 'scheduled_deadline_check', 'send_admin_daily_summary']

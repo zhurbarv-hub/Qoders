@@ -7,7 +7,9 @@
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from bot.services.formatter import format_welcome_message, format_help_message
+from bot.handlers.registration import start_registration, check_user_registered
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,23 +19,51 @@ router = Router()
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, user_role: str = 'unknown', **kwargs):
+async def cmd_start(message: Message, user_role: str = 'unknown', state: FSMContext = None, **kwargs):
     """
     Обработчик команды /start
-    Отправляет приветственное сообщение с информацией о боте
+    Проверяет авторизацию клиента или отправляет приветственное сообщение
     
     Args:
         message (Message): Входящее сообщение
         user_role (str): Роль пользователя из middleware
+        state (FSMContext): Контекст состояния FSM
     """
     try:
-        # Форматируем приветственное сообщение
-        welcome_text = format_welcome_message(user_role)
+        telegram_id = message.from_user.id
         
-        # Отправляем сообщение
+        # Для неизвестных пользователей запускаем процесс регистрации
+        if user_role == 'unknown':
+            # Проверяем, может пользователь уже зарегистрирован но middleware не обновился
+            is_registered, user = await check_user_registered(telegram_id)
+            
+            if is_registered:
+                # Пользователь зарегистрирован, показываем приветствие
+                welcome_text = f"""
+👋 <b>С возвращением!</b>
+
+Вы авторизованы как клиент: <b>{user.company_name}</b>
+
+📋 <b>Доступные команды:</b>
+• /list - Все ваши дедлайны (30 дней)
+• /today - Дедлайны на сегодня
+• /week - Дедлайны на неделю  
+• /next <дни> - Дедлайны на N дней
+• /help - Справка по командам
+"""
+                await message.answer(welcome_text, parse_mode='HTML')
+            else:
+                # Пользователь не зарегистрирован, запускаем процесс регистрации
+                await start_registration(message, state)
+            
+            logger.info(f"Пользователь {telegram_id} (роль: {user_role}) - регистрация: {is_registered}")
+            return
+        
+        # Для зарегистрированных пользователей (admin, manager, client) показываем приветствие
+        welcome_text = format_welcome_message(user_role)
         await message.answer(welcome_text, parse_mode="HTML")
         
-        logger.info(f"Пользователь {message.from_user.id} (роль: {user_role}) получил приветствие")
+        logger.info(f"Пользователь {telegram_id} (роль: {user_role}) получил приветствие")
         
     except Exception as e:
         logger.error(f"Ошибка обработки команды /start: {e}")
@@ -66,34 +96,26 @@ async def cmd_help(message: Message, user_role: str = 'unknown', **kwargs):
     
     # Административные команды для админов и менеджеров
     if user_role in ['admin', 'manager']:
-        help_text += "<b>🔹 Команды поиска и просмотра:</b>\n"
+        help_text += "<b>🔹 Команды поиска и управления:</b>\n"
         help_text += "/search &lt;запрос&gt; - Поиск клиента по ИНН/названию\n"
+        help_text += "/filter &lt;client_id&gt; - Фильтр дедлайнов по клиенту\n"
+        help_text += "/client &lt;client_id&gt; - Карточка клиента\n"
         help_text += "/export - Экспорт данных (JSON/CSV)\n\n"
     
     # Команды управления - только для администратора
     if user_role == 'admin':
-        help_text += "<b>🔹 Управление клиентами (только админ):</b>\n"
-        help_text += "/addclient - Добавить нового клиента\n"
-        help_text += "/editclient &lt;ИНН&gt; - Редактировать клиента\n"
-        help_text += "/deleteclient &lt;ИНН&gt; - Удалить клиента\n\n"
-        
-        help_text += "<b>🔹 Управление дедлайнами (админ и менеджер):</b>\n"
-        help_text += "/adddeadline - Добавить дедлайн\n"
-        help_text += "/editdeadline &lt;ID&gt; - Редактировать дедлайн\n"
-        help_text += "/deletedeadline &lt;ID&gt; - Удалить дедлайн\n\n"
-        
-        help_text += "<b>🔹 Системные команды (только админ):</b>\n"
-        help_text += "/status - Статистика системы\n"
+        help_text += "<b>🔹 Администрирование (только админ):</b>\n"
+        help_text += "/notify &lt;client_id&gt; &lt;deadline_id&gt; - Отправить уведомление\n"
+        help_text += "/stats - Статистика системы\n"
+        help_text += "/status - Проверка здоровья системы\n"
         help_text += "/check - Ручной запуск проверки\n"
         help_text += "/health - Проверка Web API\n\n"
-    elif user_role == 'manager':
-        help_text += "<b>🔹 Управление дедлайнами (менеджер):</b>\n"
-        help_text += "/adddeadline - Добавить дедлайн\n"
-        help_text += "/editdeadline &lt;ID&gt; - Редактировать дедлайн\n\n"
     
     # Дополнительная информация
-    help_text += "<i>💡 Используйте /cancel в любом диалоге для отмены операции</i>\n"
-    help_text += "<i>🔔 Бот автоматически отправляет уведомления за 14, 7 и 3 дня до истечения срока</i>"
+    help_text += "<i>🔔 Бот автоматически отправляет уведомления о приближающихся дедлайнах</i>\n"
+    
+    if user_role == 'client':
+        help_text += "<i>💡 Для управления дедлайнами используйте веб-консоль</i>"
     
     await message.answer(help_text, parse_mode='HTML')
 

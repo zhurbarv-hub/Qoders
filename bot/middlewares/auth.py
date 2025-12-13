@@ -97,30 +97,32 @@ class AuthMiddleware(BaseMiddleware):
             from bot.config import get_bot_config
             config = get_bot_config()
             
-            # ОТЛАДКА: Выводим значения для сравнения
-            logger.info(f"🔍 Проверка админа: user_id={telegram_id} (тип: {type(telegram_id)})")
-            logger.info(f"🔍 Админы из конфига: admin_ids={config['telegram_admin_ids']}")
-            logger.info(f"🔍 Проверка: {telegram_id} in {config['telegram_admin_ids']} = {telegram_id in config['telegram_admin_ids']}")
-
-            # Проверяем, является ли пользователь администратором
+            # 1. Проверяем, является ли пользователь администратором
             if telegram_id in config['telegram_admin_ids']:
                 logger.info(f"✅ Пользователь {telegram_id} является администратором")
                 return ('admin', None)
             
-            # Проверяем, является ли пользователь клиентом
+            # 2. Проверяем, является ли пользователь менеджером
+            from backend.config import settings
+            if telegram_id in settings.telegram_manager_ids_list:
+                logger.info(f"✅ Пользователь {telegram_id} является менеджером")
+                return ('manager', None)
+            
+            # 3. Проверяем, является ли пользователь зарегистрированным клиентом
             db: Session = SessionLocal()
             try:
-                # Ищем контакт в базе данных
-                contact = db.query(models.Contact).filter(
-                    models.Contact.telegram_id == str(telegram_id),
-                    models.Contact.notifications_enabled == True
+                # Ищем пользователя в таблице users с ролью client
+                user = db.query(models.User).filter(
+                    models.User.telegram_id == str(telegram_id),
+                    models.User.role == 'client',
+                    models.User.is_active == True
                 ).first()
                 
-                if contact:
-                    logger.debug(f"Пользователь {telegram_id} является клиентом клиента {contact.client_id}")
-                    return ('client', contact.client_id)
+                if user:
+                    logger.debug(f"Пользователь {telegram_id} является клиентом ID={user.id} ({user.company_name})")
+                    return ('client', user.id)
                 else:
-                    logger.debug(f"Пользователь {telegram_id} не найден в базе контактов")
+                    logger.debug(f"Пользователь {telegram_id} не найден в базе")
                     return ('unknown', None)
                     
             finally:

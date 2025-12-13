@@ -76,6 +76,32 @@ function renderClientDetails() {
 
     // Таблица информации
     const detailsTable = document.getElementById('clientDetailsTable');
+    
+    // Формируем строку для Telegram регистрации (только если не подключен)
+    let telegramRow = '';
+    if (!clientData.telegram_id) {
+        telegramRow = `
+        <tr>
+            <td style="font-weight: bold; width: 200px;">Telegram регистрация:</td>
+            <td>
+                <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" 
+                        onclick="generateTelegramCode()" 
+                        style="height: 28px; line-height: 28px; font-size: 12px;">
+                    <i class="material-icons" style="font-size: 16px; vertical-align: middle;">vpn_key</i>
+                    Сгенерировать код
+                </button>
+                <span id="telegramCodeDisplay" style="margin-left: 10px; font-family: monospace; font-weight: bold; display: none;"></span>
+                <button id="copyCodeButton" class="mdl-button mdl-js-button mdl-button--icon" 
+                        onclick="copyTelegramCode()" 
+                        title="Копировать код" 
+                        style="display: none;">
+                    <i class="material-icons" style="font-size: 18px;">content_copy</i>
+                </button>
+            </td>
+        </tr>
+        `;
+    }
+    
     detailsTable.innerHTML = `
         <tr>
             <td style="font-weight: bold; width: 200px;">Контактное лицо:</td>
@@ -97,6 +123,7 @@ function renderClientDetails() {
             <td style="font-weight: bold;">Примечания:</td>
             <td class="editable-field" data-field="notes" style="cursor: pointer;">${clientData.notes || '-'}</td>
         </tr>
+        ${telegramRow}
     `;
     
     // Добавление обработчиков для inline редактирования
@@ -470,6 +497,88 @@ function showNotification(message) {
             document.body.removeChild(notification);
         }, 300);
     }, 2000);
+}
+
+// ========== ФУНКЦИИ ДЛЯ TELEGRAM РЕГИСТРАЦИИ ==========
+
+// Генерация кода регистрации для Telegram
+async function generateTelegramCode() {
+    try {
+        const response = await fetch(`${API_BASE}/users/${currentUserId}/generate-code`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Ошибка генерации кода');
+        }
+        
+        const result = await response.json();
+        
+        // Извлекаем код из сообщения (формат: "Код регистрации: XXXXX (действителен 24 часа)")
+        const codeMatch = result.message.match(/Код регистрации: ([A-Z0-9]+)/);
+        if (codeMatch && codeMatch[1]) {
+            const code = codeMatch[1];
+            
+            // Отображаем код с инструкцией
+            const codeDisplay = document.getElementById('telegramCodeDisplay');
+            const copyButton = document.getElementById('copyCodeButton');
+            
+            codeDisplay.innerHTML = `
+                <span style="color: #4CAF50; font-size: 18px;">${code}</span>
+                <div style="font-size: 11px; color: #666; margin-top: 5px; font-family: inherit; font-weight: normal;">
+                    1. Откройте бота в Telegram<br>
+                    2. Отправьте этот код боту<br>
+                    3. Код действителен 72 часа
+                </div>
+            `;
+            codeDisplay.style.display = 'inline-block';
+            copyButton.style.display = 'inline-block';
+            
+            // Сохраняем код для копирования
+            window.currentTelegramCode = code;
+            
+            showNotification('Код успешно сгенерирован');
+        } else {
+            throw new Error('Не удалось извлечь код из ответа');
+        }
+    } catch (error) {
+        console.error('Ошибка генерации кода:', error);
+        alert(`Ошибка: ${error.message}`);
+    }
+}
+
+// Копирование кода в буфер обмена
+async function copyTelegramCode() {
+    if (!window.currentTelegramCode) {
+        alert('Код не сгенерирован');
+        return;
+    }
+    
+    try {
+        await navigator.clipboard.writeText(window.currentTelegramCode);
+        showNotification('Код скопирован в буфер обмена');
+    } catch (error) {
+        console.error('Ошибка копирования:', error);
+        // Fallback для старых браузеров
+        const textArea = document.createElement('textarea');
+        textArea.value = window.currentTelegramCode;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showNotification('Код скопирован в буфер обмена');
+        } catch (err) {
+            alert('Не удалось скопировать код');
+        }
+        document.body.removeChild(textArea);
+    }
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С КАССОВЫМИ АППАРАТАМИ ==========

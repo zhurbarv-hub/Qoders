@@ -87,6 +87,7 @@ async def get_expiring_deadlines(days: int) -> List[Dict]:
 def _get_expiring_deadlines_fallback(days: int) -> List[Dict]:
     """
     Fallback метод: прямые запросы к базе данных
+    ОБНОВЛЕНО: использует User вместо Client
     
     Args:
         days (int): Количество дней до истечения
@@ -98,20 +99,21 @@ def _get_expiring_deadlines_fallback(days: int) -> List[Dict]:
         logger.info(f"🔄 Использование fallback (прямые запросы к БД)")
         db: Session = SessionLocal()
         
-        # Запрос к представлению v_expiring_soon (без @property полей)
+        # Запрос с использованием User модели
         query = db.query(
             models.Deadline.id.label('deadline_id'),
-            models.Client.name.label('client_name'),
-            models.Client.inn.label('client_inn'),
+            models.User.company_name.label('client_name'),
+            models.User.inn.label('client_inn'),
             models.DeadlineType.type_name.label('deadline_type_name'),
             models.Deadline.expiration_date.label('expiration_date')
         ).join(
-            models.Client, models.Deadline.client_id == models.Client.id
+            models.User, models.Deadline.user_id == models.User.id
         ).join(
             models.DeadlineType, models.Deadline.deadline_type_id == models.DeadlineType.id
         ).filter(
             models.Deadline.status == 'active',
-            models.Client.is_active == True
+            models.User.is_active == True,
+            models.User.role == 'client'
         )
         
         results = query.all()
@@ -158,6 +160,7 @@ def _get_expiring_deadlines_fallback(days: int) -> List[Dict]:
 def get_notification_recipients(deadline_id: int) -> List[Dict]:
     """
     Получение списка получателей уведомлений для конкретного дедлайна
+    ОБНОВЛЕНО: поддержка ролевой модели (admin, manager, client)
     
     Args:
         deadline_id (int): ID дедлайна
@@ -176,38 +179,74 @@ def get_notification_recipients(deadline_id: int) -> List[Dict]:
             
         recipients = []
         
-        # Добавляем администратора как получателя
+        # Получаем конфигурацию для добавления админов и менеджеров
+        from backend.config import settings
         from bot.config import get_bot_config
         config = get_bot_config()
-        recipients.append({
-            'telegram_id': str(config['telegram_admin_id']),
-            'recipient_type': 'admin',
-            'client_id': None
-        })
         
-        # Получаем контакты клиента
-        contacts = db.query(models.Contact).filter(
-            models.Contact.client_id == deadline.client_id,
-            models.Contact.notifications_enabled == True,
-            models.Contact.telegram_id.isnot(None)
-        ).all()
-        
-        # Добавляем контакты клиента
-        for contact in contacts:
+        # 1. Добавляем администраторов как получателей (если включено в настройках)
+        if settings.notification_include_admins:
+            # Главный админ
             recipients.append({
-                'telegram_id': contact.telegram_id,
-                'recipient_type': 'client',
-                'client_id': contact.client_id
+                'telegram_id': str(config['telegram_admin_id']),
+                'recipient_type': 'admin',
+                'user_id': None
             })
             
-        logger.debug(f"Найдено {len(recipients)} получателей для дедлайна {deadline_id}")
+            # Дополнительные админы из списка
+            for admin_id in config.get('telegram_admin_ids', []):
+                if admin_id != config['telegram_admin_id']:  # Избегаем дублирования
+                    recipients.append({
+                        'telegram_id': str(admin_id),
+                        'recipient_type': 'admin',
+                        'user_id': None
+                    })
+        
+        # 2. Добавляем менеджеров (если есть в настройках)
+        for manager_id in settings.telegram_manager_ids_list:
+            recipients.append({
+                'telegram_id': str(manager_id),
+                'recipient_type': 'manager',
+                'user_id': None
+            })
+        
+        # 3. Добавляем клиента, которому принадлежит дедлайн
+        if deadline.user_id:
+            # Получаем пользователя-клиента
+            client = db.query(models.User).filter(
+                models.User.id == deadline.user_id,
+                models.User.role == 'client',
+                models.User.is_active == True,
+                models.User.notifications_enabled == True,
+                models.User.telegram_id.isnot(None)
+            ).first()
+            
+            if client:
+                recipients.append({
+                    'telegram_id': client.telegram_id,
+                    'recipient_type': 'client',
+                    'user_id': client.id
+                })
+                logger.debug(f"Добавлен клиент {client.id} ({client.company_name}) в список получателей")
+            else:
+                logger.warning(f"Клиент для дедлайна {deadline_id} (user_id={deadline.user_id}) не найден или не настроен для уведомлений")
+        else:
+            logger.warning(f"Дедлайн {deadline_id} не привязан к клиенту (user_id отсутствует)")
+            
+        logger.debug(f"Найдено {len(recipients)} получателей для дедлайна {deadline_id}: "
+                    f"{sum(1 for r in recipients if r['recipient_type'] == 'admin')} админов, "
+                    f"{sum(1 for r in recipients if r['recipient_type'] == 'manager')} менеджеров, "
+                    f"{sum(1 for r in recipients if r['recipient_type'] == 'client')} клиентов")
         return recipients
         
     except Exception as e:
         logger.error(f"Ошибка получения получателей для дедлайна {deadline_id}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return []
     finally:
-        db.close()
+        if 'db' in locals():
+            db.close()
 
 
 def check_notification_sent(deadline_id: int, days: int, recipient_id: str) -> bool:
