@@ -11,41 +11,55 @@ from backend.config import settings
 import os
 
 # ============================================
-# Настройка пути к базе данных
-# ============================================
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-db_path = os.path.join(BASE_DIR, settings.database_path)
-
-# Создаём директорию для БД если не существует
-os.makedirs(os.path.dirname(db_path), exist_ok=True)
-
-# ============================================
 # Настройка SQLAlchemy Engine
 # ============================================
-DATABASE_URL = f"sqlite:///{db_path}"
+DATABASE_URL = settings.get_database_url()
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={
-        "check_same_thread": False  # Необходимо для SQLite в многопоточном режиме
-    },
-    echo=False,  # Установите True для отладки SQL запросов
-    pool_pre_ping=True,  # Проверка соединения перед использованием
-    pool_recycle=3600  # Переподключение каждый час
-)
+# Определяем тип базы данных
+is_sqlite = DATABASE_URL.startswith('sqlite')
+is_postgres = DATABASE_URL.startswith('postgres')
+
+# Настройка директории для SQLite
+if is_sqlite:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    db_path = os.path.join(BASE_DIR, settings.database_path)
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+# Параметры подключения в зависимости от типа БД
+if is_sqlite:
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={
+            "check_same_thread": False  # Необходимо для SQLite в многопоточном режиме
+        },
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=3600
+    )
+else:
+    # PostgreSQL
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        pool_size=10,
+        max_overflow=20
+    )
 
 # ============================================
 # Включение внешних ключей для SQLite
 # ============================================
-@event.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_conn, connection_record):
-    """
-    Включение поддержки внешних ключей в SQLite
-    Вызывается автоматически при каждом подключении
-    """
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+if is_sqlite:
+    @event.listens_for(Engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        """
+        Включение поддержки внешних ключей в SQLite
+        Вызывается автоматически при каждом подключении
+        """
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 # ============================================
 # Создание фабрики сессий
@@ -96,7 +110,10 @@ def init_db():
     from backend import models  # noqa: F401
     
     Base.metadata.create_all(bind=engine)
-    print(f"✅ База данных инициализирована: {db_path}")
+    if is_sqlite:
+        print(f"✅ База данных инициализирована: {db_path}")
+    else:
+        print(f"✅ База данных инициализирована: {DATABASE_URL}")
 
 def check_db_connection():
     """
@@ -123,13 +140,15 @@ def get_db_info():
     """
     info = {
         "database_url": DATABASE_URL,
-        "database_path": db_path,
-        "database_exists": os.path.exists(db_path),
+        "database_type": "PostgreSQL" if is_postgres else "SQLite",
         "connection_ok": check_db_connection()
     }
     
-    if info["database_exists"]:
-        info["database_size"] = os.path.getsize(db_path)
+    if is_sqlite:
+        info["database_path"] = db_path
+        info["database_exists"] = os.path.exists(db_path)
+        if info["database_exists"]:
+            info["database_size"] = os.path.getsize(db_path)
     
     return info
 
@@ -143,13 +162,16 @@ if __name__ == "__main__":
     
     info = get_db_info()
     
-    print(f"\n📁 Путь к БД: {info['database_path']}")
+    print(f"\n📊 Тип БД: {info['database_type']}")
     print(f"🔗 URL подключения: {info['database_url']}")
-    print(f"📊 Файл существует: {'✓' if info['database_exists'] else '✗'}")
     
-    if info.get('database_size'):
-        size_kb = info['database_size'] / 1024
-        print(f"💾 Размер файла: {size_kb:.2f} KB")
+    if is_sqlite:
+        print(f"📁 Путь к БД: {info['database_path']}")
+        print(f"📊 Файл существует: {'✓' if info.get('database_exists') else '✗'}")
+        
+        if info.get('database_size'):
+            size_kb = info['database_size'] / 1024
+            print(f"💾 Размер файла: {size_kb:.2f} KB")
     
     print(f"🔌 Подключение: {'✓ Успешно' if info['connection_ok'] else '✗ Ошибка'}")
     
@@ -157,9 +179,14 @@ if __name__ == "__main__":
         print("\n📋 Проверка таблиц...")
         try:
             with engine.connect() as conn:
-                result = conn.execute(
-                    text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-                )
+                if is_sqlite:
+                    result = conn.execute(
+                        text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                    )
+                else:
+                    result = conn.execute(
+                        text("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
+                    )
                 tables = result.fetchall()
                 
                 if tables:

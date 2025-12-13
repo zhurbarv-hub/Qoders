@@ -19,9 +19,15 @@ class Settings(BaseSettings):
     # ============================================
     # Database Configuration
     # ============================================
+    database_url: str = Field(
+        default="sqlite:///database/kkt_services.db",
+        description="URL подключения к базе данных (SQLite или PostgreSQL)"
+    )
+    
+    # Для обратной совместимости (deprecated)
     database_path: str = Field(
         default="database/kkt_services.db",
-        description="Путь к файлу базы данных SQLite"
+        description="Путь к файлу базы данных SQLite (deprecated, используйте DATABASE_URL)"
     )
     
     # ============================================
@@ -193,14 +199,17 @@ class Settings(BaseSettings):
         """
         return [origin.strip() for origin in self.cors_origins.split(",")]
     
-    @property
-    def database_url(self) -> str:
+    def get_database_url(self) -> str:
         """
-        Получение полного URL базы данных для SQLAlchemy
+        Получение URL базы данных
         
         Returns:
             str: URL подключения к базе данных
         """
+        # Если DATABASE_URL явно задан в .env, используем его
+        # Иначе формируем из database_path для обратной совместимости
+        if self.database_url and not self.database_url.startswith("sqlite:///database/"):
+            return self.database_url
         return f"sqlite:///{self.database_path}"
     
     @property
@@ -277,9 +286,10 @@ if __name__ == "__main__":
     print("=" * 60)
     
     print(f"\n📁 База данных:")
-    print(f"   Path: {settings.database_path}")
-    print(f"   URL: {settings.database_url}")
-    print(f"   Exists: {os.path.exists(settings.database_path)}")
+    print(f"   URL: {settings.get_database_url()}")
+    if settings.get_database_url().startswith('sqlite'):
+        print(f"   Path: {settings.database_path}")
+        print(f"   Exists: {os.path.exists(settings.database_path)}")
     
     print(f"\n🔐 JWT:")
     print(f"   Algorithm: {settings.jwt_algorithm}")
