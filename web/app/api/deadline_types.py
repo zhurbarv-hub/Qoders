@@ -38,11 +38,8 @@ async def get_deadline_types(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Получить список всех типов дедлайнов (только пользовательские, без системных)"""
+    """Получить список всех типов дедлайнов"""
     query = db.query(DeadlineType)
-    
-    # Исключаем системные типы
-    query = query.filter(DeadlineType.is_system == False)
     
     if not include_inactive:
         query = query.filter(DeadlineType.is_active == True)
@@ -156,7 +153,7 @@ async def delete_deadline_type(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Удалить тип дедлайна (только если не используется)"""
+    """Удалить тип дедлайна (при удалении очищает поле в связанных дедлайнах)"""
     
     # Проверка прав доступа
     if current_user.get('role') != 'admin':
@@ -173,19 +170,16 @@ async def delete_deadline_type(
             detail=f"Тип дедлайна с ID {type_id} не найден"
         )
     
-    # Проверка использования
+    # Очистка deadline_type_id в связанных дедлайнах
     from ..models.client import Deadline
-    deadlines_count = db.query(Deadline).filter(
+    updated_count = db.query(Deadline).filter(
         Deadline.deadline_type_id == type_id
-    ).count()
+    ).update({"deadline_type_id": None}, synchronize_session=False)
     
-    if deadlines_count > 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Невозможно удалить тип: используется в {deadlines_count} дедлайнах. Сначала деактивируйте тип."
-        )
+    if updated_count > 0:
+        print(f"ℹ️ Очищено поле deadline_type_id в {updated_count} дедлайнах")
     
-    # Удаление
+    # Удаление типа
     db.delete(deadline_type)
     db.commit()
     

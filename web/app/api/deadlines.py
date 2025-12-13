@@ -187,19 +187,30 @@ async def get_deadlines(
 @router.get("/urgent", response_model=List[DeadlineDetailResponse])  # Alias для совместимости
 async def get_expiring_soon(
     days: int = Query(14, ge=1, le=90, description="Количество дней"),
+    include_expired: bool = Query(True, description="Включать просроженные дедлайны"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Получить дедлайны, истекающие в ближайшие N дней"""
+    """Получить дедлайны, истекающие в ближайшие N дней (и просроченные, если include_expired=True)"""
     
     target_date = date.today() + timedelta(days=days)
     
-    deadlines = db.query(Deadline)\
+    # Базовый запрос
+    base_query = db.query(Deadline)\
         .outerjoin(User, Deadline.user_id == User.id)\
         .join(DeadlineType, Deadline.deadline_type_id == DeadlineType.id)\
-        .filter(
+        .filter(Deadline.status == 'active')
+    
+    # Если нужно включить просроченные (по умолчанию True)
+    if include_expired:
+        # Включаем все дедлайны до target_date (включая просроченные)
+        deadlines = base_query.filter(
+            Deadline.expiration_date <= target_date
+        ).order_by(Deadline.expiration_date).all()
+    else:
+        # Только будущие дедлайны
+        deadlines = base_query.filter(
             and_(
-                Deadline.status == 'active',
                 Deadline.expiration_date >= date.today(),
                 Deadline.expiration_date <= target_date
             )

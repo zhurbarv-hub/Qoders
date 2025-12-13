@@ -688,6 +688,8 @@ async def get_user_full_details(
                 "installation_address": reg.installation_address,
                 "ofd_provider_id": reg.ofd_provider_id,
                 "notes": reg.notes,
+                "fn_replacement_date": reg.fn_replacement_date,
+                "ofd_renewal_date": reg.ofd_renewal_date,
                 "is_active": reg.is_active
             }
             for reg in cash_registers
@@ -695,3 +697,126 @@ async def get_user_full_details(
         "register_deadlines": register_deadlines,
         "general_deadlines": general_deadlines
     }
+
+
+@router.post("/{user_id}/send-deadlines-telegram", response_model=MessageResponse)
+async def send_deadlines_to_telegram(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(check_admin_or_manager_role)
+):
+    """
+    Отправить текущие дедлайны клиента в Telegram
+    Доступно только для администраторов и менеджеров
+    """
+    from datetime import date
+    import os
+    import sys
+    
+    # Проверяем существование пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Пользователь с ID {user_id} не найден"
+        )
+    
+    # Проверяем, что это клиент
+    if user.role != 'client':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Отправка дедлайнов доступна только для клиентов"
+        )
+    
+    # Проверяем наличие Telegram ID
+    if not user.telegram_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Клиент {user.company_name or user.full_name} не подключен к Telegram"
+        )
+    
+    # Получаем активные дедлайны клиента
+    deadlines = db.query(Deadline).filter(
+        Deadline.user_id == user_id,
+        Deadline.status == 'active'
+    ).order_by(Deadline.expiration_date).all()
+    
+    if not deadlines:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"У клиента {user.company_name or user.full_name} нет активных дедлайнов"
+        )
+    
+    # Формируем список дедлайнов для отправки
+    today = date.today()
+    deadlines_data = []
+    
+    for deadline in deadlines:
+        days_diff = (deadline.expiration_date - today).days
+        
+        # Определение статуса
+        if days_diff < 0:
+            status_color = "expired"
+        elif days_diff <= 7:
+            status_color = "red"
+        elif days_diff <= 14:
+            status_color = "yellow"
+        else:
+            status_color = "green"
+        
+        deadlines_data.append({
+            'deadline_id': deadline.id,
+            'client_name': user.company_name or user.full_name,
+            'client_inn': user.inn or 'Не указано',
+            'deadline_type_name': deadline.deadline_type.type_name if deadline.deadline_type else 'Неизвестно',
+            'expiration_date': deadline.expiration_date,
+            'days_remaining': days_diff,
+            'status': status_color
+        })
+    
+    # Добавляем путь к bot в sys.path для импорта
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    try:
+        # Импортируем сервисы бота
+        from bot.services.formatter import format_deadline_list
+        from bot.services.notifier import send_notification
+        from aiogram import Bot
+        from bot.config import settings as bot_settings
+        
+        # Создаем экземпляр бота
+        bot = Bot(token=bot_settings.telegram_bot_token)
+        
+        # Форматируем сообщение
+        title = f"📄 Ваши текущие дедлайны ({len(deadlines_data)})"
+        message = format_deadline_list(deadlines_data, title=title)
+        message += f"\n\nℹ️ <i>Отправлено {current_user.get('full_name', 'администратором')}</i>"
+        
+        # Отправляем уведомление
+        success = await send_notification(bot, int(user.telegram_id), message)
+        
+        # Закрываем бота
+        await bot.session.close()
+        
+        if success:
+            return MessageResponse(
+                message=f"Дедлайны успешно отправлены клиенту {user.company_name or user.full_name} в Telegram"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Не удалось отправить сообщение в Telegram"
+            )
+            
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка импорта модулей бота: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при отправке дедлайнов: {str(e)}"
+        )

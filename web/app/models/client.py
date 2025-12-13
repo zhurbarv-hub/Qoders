@@ -58,7 +58,7 @@ class Deadline(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)  # Новое поле
     client_id = Column(Integer, ForeignKey('clients.id', ondelete='CASCADE'), nullable=True, index=True)  # Старое поле (для совместимости)
-    deadline_type_id = Column(Integer, ForeignKey('deadline_types.id'), nullable=False, index=True)
+    deadline_type_id = Column(Integer, ForeignKey('deadline_types.id'), nullable=True, index=True)  # Изменено на nullable=True
     cash_register_id = Column(Integer, ForeignKey('cash_registers.id', ondelete='CASCADE'), nullable=True, index=True)  # Связь с кассовым аппаратом
     expiration_date = Column(Date, nullable=False, index=True)
     status = Column(String(20), nullable=False, default='active', index=True)

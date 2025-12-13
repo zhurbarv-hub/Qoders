@@ -173,7 +173,7 @@ async function exportClients(format) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `clients_${new Date().toISOString().split('T')[0]}.${format}`;
+        a.download = `clients_${formatDateForFilename()}.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -209,7 +209,7 @@ async function exportDeadlines(format) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `deadlines_${new Date().toISOString().split('T')[0]}.${format}`;
+        a.download = `deadlines_${formatDateForFilename()}.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -245,7 +245,7 @@ async function exportDeadlineTypes(format) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `deadline_types_${new Date().toISOString().split('T')[0]}.${format}`;
+        a.download = `deadline_types_${formatDateForFilename()}.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -281,7 +281,7 @@ async function exportAll() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `kkt_full_export_${new Date().toISOString().split('T')[0]}.zip`;
+        a.download = `kkt_full_export_${formatDateForFilename()}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

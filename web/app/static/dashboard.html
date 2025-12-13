@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Панель управления - KKT System</title>
+    <title>Управление Дедлайнами - Релабс Центр</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
@@ -15,7 +15,7 @@
         <!-- Боковое меню -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h2>📈 KKT System</h2>
+                <h2>📈 Релабс Центр</h2>
             </div>
             <nav class="sidebar-nav">
                 <a href="#statistics" class="nav-item active" data-section="statistics">
@@ -59,7 +59,7 @@
         <main class="main-content">
             <!-- Верхняя панель -->
             <header class="content-header">
-                <h1 id="pageTitle">📊 Панель управления</h1>
+                <h1 id="pageTitle">📊 Управление Дедлайнами</h1>
                 <div class="header-actions">
                     <span class="user-badge" id="userName">👤 Загрузка...</span>
                 </div>
@@ -70,12 +70,12 @@
                 <!-- Статистика -->
                 <div class="mdl-grid">
                     <div class="mdl-cell mdl-cell--12-col">
-                        <h3>📊 Панель управления</h3>
+                        <h3>📊 Управление Дедлайнами</h3>
                     </div>
                     
                     <!-- Карточки статистики -->
                     <div class="mdl-cell mdl-cell--3-col mdl-cell--6-col-tablet mdl-cell--4-col-phone">
-                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%; min-height: 150px;">
+                        <div class="mdl-card mdl-shadow--2dp clickable-card" onclick="navigateToClients()" style="width: 100%; min-height: 150px; cursor: pointer; transition: transform 0.2s;">
                             <div class="mdl-card__title" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                                 <h2 class="mdl-card__title-text">Всего клиентов</h2>
                             </div>
@@ -89,7 +89,7 @@
                     </div>
                     
                     <div class="mdl-cell mdl-cell--3-col mdl-cell--6-col-tablet mdl-cell--4-col-phone">
-                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%; min-height: 150px;">
+                        <div class="mdl-card mdl-shadow--2dp clickable-card" onclick="navigateToAllDeadlines()" style="width: 100%; min-height: 150px; cursor: pointer; transition: transform 0.2s;">
                             <div class="mdl-card__title" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
                                 <h2 class="mdl-card__title-text">Всего дедлайнов</h2>
                             </div>
@@ -103,7 +103,7 @@
                     </div>
                     
                     <div class="mdl-cell mdl-cell--3-col mdl-cell--6-col-tablet mdl-cell--4-col-phone">
-                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%; min-height: 150px;">
+                        <div class="mdl-card mdl-shadow--2dp clickable-card" onclick="navigateToUrgentDeadlines()" style="width: 100%; min-height: 150px; cursor: pointer; transition: transform 0.2s;">
                             <div class="mdl-card__title" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
                                 <h2 class="mdl-card__title-text">Истекает скоро</h2>
                             </div>
@@ -117,7 +117,7 @@
                     </div>
                     
                     <div class="mdl-cell mdl-cell--3-col mdl-cell--6-col-tablet mdl-cell--4-col-phone">
-                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%; min-height: 150px;">
+                        <div class="mdl-card mdl-shadow--2dp clickable-card" onclick="navigateToExpiredDeadlines()" style="width: 100%; min-height: 150px; cursor: pointer; transition: transform 0.2s;">
                             <div class="mdl-card__title" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
                                 <h2 class="mdl-card__title-text">Просрочено</h2>
                             </div>
@@ -126,31 +126,6 @@
                             </div>
                             <div class="mdl-card__actions mdl-card--border" style="text-align: center; font-size: 12px; color: #666;">
                                 Требуют продления
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Графики -->
-                <div class="mdl-grid">
-                    <div class="mdl-cell mdl-cell--6-col mdl-cell--12-col-tablet">
-                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
-                            <div class="mdl-card__title mdl-color--primary mdl-color-text--white">
-                                <h2 class="mdl-card__title-text">Распределение по статусам</h2>
-                            </div>
-                            <div class="mdl-card__supporting-text" style="padding: 20px;">
-                                <canvas id="statusChart" height="200"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mdl-cell mdl-cell--6-col mdl-cell--12-col-tablet">
-                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
-                            <div class="mdl-card__title mdl-color--primary mdl-color-text--white">
-                                <h2 class="mdl-card__title-text">Дедлайны по типам</h2>
-                            </div>
-                            <div class="mdl-card__supporting-text" style="padding: 20px;">
-                                <canvas id="typeChart" height="200"></canvas>
                             </div>
                         </div>
                     </div>
@@ -242,6 +217,7 @@
     </div>
     
     <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+    <script src="/static/js/date-utils.js"></script>
     <script src="/static/js/dashboard.js?v=4.13&t=20251212_2359"></script>
     <script src="/static/js/users.js?v=4.11&t=20251212_2300"></script>
     <script src="/static/js/deadlines.js?v=4.10&t=20251212_2245"></script>

@@ -447,3 +447,13 @@ body {
 .info-row i {
     color: #4caf50;
 }
+
+/* Кликабельные карточки статистики */
+.clickable-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.clickable-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+}

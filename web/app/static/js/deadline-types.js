@@ -46,7 +46,7 @@ async function loadDeadlineTypesData() {
  */
 function renderDeadlineTypesTable(types) {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isAdmin = ['admin', 'manager'].includes(user.role);
+    const isAdmin = user.role === 'admin';  // Только admin может редактировать и удалять
     
     const tableHTML = `
         <div class="section-header">
@@ -86,7 +86,10 @@ function renderDeadlineTypesTable(types) {
                             </td>
                             ${isAdmin ? `
                             <td>
-                                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteDeadlineType(${type.id})" title="Удалить" style="color: #f44336;">
+                                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="event.stopPropagation(); editDeadlineType(${type.id})" title="Редактировать" style="color: #2196F3;">
+                                    <i class="material-icons">edit</i>
+                                </button>
+                                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="event.stopPropagation(); deleteDeadlineType(${type.id})" title="Удалить" style="color: #f44336;">
                                     <i class="material-icons">delete</i>
                                 </button>
                             </td>
@@ -209,7 +212,9 @@ async function deleteDeadlineType(id) {
         });
         
         if (!response.ok) {
-            throw new Error('Ошибка удаления типа услуги');
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.detail || 'Ошибка удаления типа услуги';
+            throw new Error(errorMessage);
         }
         
         alert('Тип услуги успешно удалён');
@@ -297,7 +302,7 @@ async function submitDeadlineTypeForm(event, mode, typeId) {
         });
         
         if (!response.ok) {
-            const error = await response.json();
+            const error = await response.json().catch(() => ({}));
             throw new Error(error.detail || 'Ошибка сохранения');
         }
         

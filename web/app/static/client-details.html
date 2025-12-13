@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Детали клиента - KKT System</title>
+    <title>Детали клиента - Релабс Центр</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
@@ -127,6 +127,115 @@
             padding: 8px 12px;
         }
         
+        /* Красивый блок информации о клиенте */
+        .client-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            padding: 4px;
+        }
+        
+        .client-info-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .client-info-item:hover {
+            background: #e9ecef;
+            transform: translateX(2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+        
+        .client-info-item.telegram-item {
+            border-left-color: #0088cc;
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+        }
+        
+        .client-info-item.telegram-item:hover {
+            background: linear-gradient(135deg, #bbdefb 0%, #e1bee7 100%);
+        }
+        
+        .client-info-icon {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            margin-right: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .client-info-icon .material-icons {
+            font-size: 20px;
+            color: #667eea;
+        }
+        
+        .client-info-item.telegram-item .client-info-icon .material-icons {
+            color: #0088cc;
+        }
+        
+        .client-info-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .client-info-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #6c757d;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .client-info-value {
+            font-size: 14px;
+            color: #212529;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        
+        .client-info-value.empty {
+            color: #adb5bd;
+            font-style: italic;
+        }
+        
+        .client-info-value a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .client-info-value a:hover {
+            text-decoration: underline;
+        }
+        
+        .telegram-code-block {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .telegram-code-display {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            color: #0088cc;
+            background: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 2px dashed #0088cc;
+        }
+        
         /* Убираем лишние отступы в grid */
         .mdl-grid {
             padding: 0;
@@ -142,7 +251,7 @@
         <!-- Боковое меню (упрощенное) -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h2>📈 KKT System</h2>
+                <h2>📈 Релабс Центр</h2>
             </div>
             <nav class="sidebar-nav">
                 <a href="/static/dashboard.html" class="nav-item">
@@ -178,9 +287,18 @@
                     <h1 id="clientName">Загрузка...</h1>
                     <p id="clientInfo">ИНН: ... | Email: ...</p>
                 </div>
-                <div class="telegram-status" id="telegramStatus">
-                    <i class="material-icons" style="font-size: 18px;">telegram</i>
-                    <span id="telegramStatusText">Проверка...</span>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <button class="mdl-button mdl-js-button mdl-button--raised" 
+                            id="sendToTelegramBtn" 
+                            style="display: none; background-color: #0088cc; color: white;"
+                            title="Отправить дедлайны в Telegram">
+                        <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 6px;">send</i>
+                        Отправить дедлайны в TG
+                    </button>
+                    <div class="telegram-status" id="telegramStatus">
+                        <i class="material-icons" style="font-size: 18px;">telegram</i>
+                        <span id="telegramStatusText">Проверка...</span>
+                    </div>
                 </div>
             </div>
 
@@ -192,11 +310,9 @@
                             <h2 class="mdl-card__title-text">📋 Информация о клиенте</h2>
                         </div>
                         <div class="mdl-card__supporting-text">
-                            <table class="mdl-data-table" style="width: 100%; border: none;">
-                                <tbody id="clientDetailsTable">
-                                    <tr><td colspan="2">Загрузка...</td></tr>
-                                </tbody>
-                            </table>
+                            <div class="client-info-grid" id="clientDetailsGrid">
+                                <div style="text-align: center; color: #999; padding: 20px;">Загрузка...</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -281,18 +397,33 @@
                     <label class="mdl-textfield__label" for="serialNumber">Серийный номер ККТ *</label>
                 </div>
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
-                    <input class="mdl-textfield__input" type="text" id="fiscalDriveNumber" required>
-                    <label class="mdl-textfield__label" for="fiscalDriveNumber">Номер ФН *</label>
+                    <input class="mdl-textfield__input" type="text" id="fiscalDriveNumber" maxlength="16" pattern="[0-9]{1,16}" required>
+                    <label class="mdl-textfield__label" for="fiscalDriveNumber">Номер ФН * (макс. 16 цифр)</label>
                 </div>
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
                     <input class="mdl-textfield__input" type="text" id="installationAddress">
                     <label class="mdl-textfield__label" for="installationAddress">Адрес установки</label>
                 </div>
-                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                <div style="width: 100%; margin-top: 12px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px; color: rgba(0,0,0,.54);">Наименование ОФД</label>
                     <select class="mdl-textfield__input" id="ofdProvider" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                         <option value="">Не выбран</option>
                     </select>
-                    <label class="mdl-textfield__label" for="ofdProvider" style="top: -20px;">Наименование ОФД</label>
+                </div>
+                <div style="margin-top: 20px; padding: 10px; background: #f0f8ff; border-radius: 4px;">
+                    <h5 style="margin: 0 0 10px 0; color: #3f51b5;">Сроки обслуживания</h5>
+                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                        <input class="mdl-textfield__input" type="date" id="fnReplacementDate" placeholder="ДД.ММ.ГГГГ">
+                        <label class="mdl-textfield__label" for="fnReplacementDate">Дата замены ФН</label>
+                    </div>
+                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                        <input class="mdl-textfield__input" type="date" id="ofdRenewalDate" placeholder="ДД.ММ.ГГГГ">
+                        <label class="mdl-textfield__label" for="ofdRenewalDate">Дата продления ОФД</label>
+                    </div>
+                    <p style="font-size: 12px; color: #666; margin: 8px 0 0 0;">
+                        <i class="material-icons" style="font-size: 14px; vertical-align: middle;">ℹ️</i>
+                        При заполнении этих полей автоматически создаются дедлайны
+                    </p>
                 </div>
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
                     <textarea class="mdl-textfield__input" id="registerNotes" rows="3"></textarea>
@@ -325,7 +456,7 @@
                     <label class="mdl-textfield__label" for="deadlineCashRegister" style="top: -20px;">Кассовый аппарат</label>
                 </div>
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%; margin-top: 20px;">
-                    <input class="mdl-textfield__input" type="date" id="deadlineExpiration" required>
+                    <input class="mdl-textfield__input" type="date" id="deadlineExpiration" required placeholder="ДД.ММ.ГГГГ">
                     <label class="mdl-textfield__label" for="deadlineExpiration">Дата истечения *</label>
                 </div>
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%; margin-top: 20px;">
@@ -351,6 +482,7 @@
     </dialog>
 
     <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+    <script src="/static/js/date-utils.js"></script>
     <script src="/static/js/auth.js"></script>
     <script src="/static/js/client-details.js"></script>
 </body>

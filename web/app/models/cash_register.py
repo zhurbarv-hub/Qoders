@@ -2,7 +2,7 @@
 """
 SQLAlchemy модель для кассовых аппаратов
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -21,6 +21,8 @@ class CashRegister(Base):
     register_name = Column(String(100), nullable=False)
     ofd_provider_id = Column(Integer, ForeignKey('ofd_providers.id', ondelete='SET NULL'))  # Провайдер ОФД
     notes = Column(Text)  # Примечание
+    fn_replacement_date = Column(Date, nullable=True)  # Дата замены ФН
+    ofd_renewal_date = Column(Date, nullable=True)  # Дата продления ОФД
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

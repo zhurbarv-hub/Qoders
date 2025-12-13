@@ -275,11 +275,10 @@ function getDeadlineStatus(daysLeft) {
 }
 
 /**
- * Форматирование даты
+ * Форматирование даты - используем российский формат ДД.ММ.ГГГГ
  */
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU');
+    return formatDateRU(dateString);
 }
 
 /**

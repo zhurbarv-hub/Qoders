@@ -63,68 +63,136 @@ function renderClientDetails() {
     // Статус Telegram
     const telegramStatus = document.getElementById('telegramStatus');
     const telegramStatusText = document.getElementById('telegramStatusText');
+    const sendToTelegramBtn = document.getElementById('sendToTelegramBtn');
     
     if (clientData.telegram_id) {
         telegramStatus.classList.remove('disconnected');
         telegramStatus.classList.add('connected');
         telegramStatusText.textContent = 'Подключен';
+        
+        // Показываем кнопку отправки в Telegram
+        if (sendToTelegramBtn) {
+            sendToTelegramBtn.style.display = 'inline-flex';
+        }
     } else {
         telegramStatus.classList.remove('connected');
         telegramStatus.classList.add('disconnected');
         telegramStatusText.textContent = 'Не подключен';
     }
 
-    // Таблица информации
-    const detailsTable = document.getElementById('clientDetailsTable');
+    // Сетка информации о клиенте
+    const detailsGrid = document.getElementById('clientDetailsGrid');
     
-    // Формируем строку для Telegram регистрации (только если не подключен)
-    let telegramRow = '';
+    // Формируем карточки с информацией
+    let cardsHTML = '';
+    
+    // Контактное лицо
+    cardsHTML += `
+        <div class="client-info-item editable-field" data-field="contact_person">
+            <div class="client-info-icon">
+                <i class="material-icons">person</i>
+            </div>
+            <div class="client-info-content">
+                <div class="client-info-label">Контактное лицо</div>
+                <div class="client-info-value ${!clientData.contact_person ? 'empty' : ''}">
+                    ${clientData.contact_person || 'Не указано'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Телефон
+    cardsHTML += `
+        <div class="client-info-item editable-field" data-field="phone">
+            <div class="client-info-icon">
+                <i class="material-icons">phone</i>
+            </div>
+            <div class="client-info-content">
+                <div class="client-info-label">Телефон</div>
+                <div class="client-info-value ${!clientData.phone ? 'empty' : ''}">
+                    ${clientData.phone ? `<a href="tel:${clientData.phone}">${clientData.phone}</a>` : 'Не указан'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Email
+    cardsHTML += `
+        <div class="client-info-item editable-field" data-field="email">
+            <div class="client-info-icon">
+                <i class="material-icons">email</i>
+            </div>
+            <div class="client-info-content">
+                <div class="client-info-label">Email</div>
+                <div class="client-info-value ${!clientData.email ? 'empty' : ''}">
+                    ${clientData.email ? `<a href="mailto:${clientData.email}">${clientData.email}</a>` : 'Не указан'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Адрес
+    cardsHTML += `
+        <div class="client-info-item editable-field" data-field="address">
+            <div class="client-info-icon">
+                <i class="material-icons">location_on</i>
+            </div>
+            <div class="client-info-content">
+                <div class="client-info-label">Адрес</div>
+                <div class="client-info-value ${!clientData.address ? 'empty' : ''}">
+                    ${clientData.address || 'Не указан'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Примечания
+    cardsHTML += `
+        <div class="client-info-item editable-field" data-field="notes">
+            <div class="client-info-icon">
+                <i class="material-icons">notes</i>
+            </div>
+            <div class="client-info-content">
+                <div class="client-info-label">Примечания</div>
+                <div class="client-info-value ${!clientData.notes ? 'empty' : ''}">
+                    ${clientData.notes || 'Нет примечаний'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Telegram регистрация (только если не подключен)
     if (!clientData.telegram_id) {
-        telegramRow = `
-        <tr>
-            <td style="font-weight: bold; width: 200px;">Telegram регистрация:</td>
-            <td>
-                <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" 
-                        onclick="generateTelegramCode()" 
-                        style="height: 28px; line-height: 28px; font-size: 12px;">
-                    <i class="material-icons" style="font-size: 16px; vertical-align: middle;">vpn_key</i>
-                    Сгенерировать код
-                </button>
-                <span id="telegramCodeDisplay" style="margin-left: 10px; font-family: monospace; font-weight: bold; display: none;"></span>
-                <button id="copyCodeButton" class="mdl-button mdl-js-button mdl-button--icon" 
-                        onclick="copyTelegramCode()" 
-                        title="Копировать код" 
-                        style="display: none;">
-                    <i class="material-icons" style="font-size: 18px;">content_copy</i>
-                </button>
-            </td>
-        </tr>
+        cardsHTML += `
+            <div class="client-info-item telegram-item">
+                <div class="client-info-icon">
+                    <i class="material-icons">telegram</i>
+                </div>
+                <div class="client-info-content">
+                    <div class="client-info-label">Telegram регистрация</div>
+                    <div class="client-info-value">
+                        <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" 
+                                onclick="generateTelegramCode()" 
+                                style="height: 32px; line-height: 32px; font-size: 13px; margin: 0;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle;">vpn_key</i>
+                            Сгенерировать код
+                        </button>
+                        <div class="telegram-code-block" id="telegramCodeBlock" style="display: none;">
+                            <span class="telegram-code-display" id="telegramCodeDisplay"></span>
+                            <button class="mdl-button mdl-js-button mdl-button--icon" 
+                                    onclick="copyTelegramCode()" 
+                                    title="Копировать код" 
+                                    id="copyCodeButton">
+                                <i class="material-icons" style="font-size: 18px;">content_copy</i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         `;
     }
     
-    detailsTable.innerHTML = `
-        <tr>
-            <td style="font-weight: bold; width: 200px;">Контактное лицо:</td>
-            <td class="editable-field" data-field="contact_person" style="cursor: pointer;">${clientData.contact_person || '-'}</td>
-        </tr>
-        <tr>
-            <td style="font-weight: bold;">Телефон:</td>
-            <td class="editable-field" data-field="phone" style="cursor: pointer;">${clientData.phone || '-'}</td>
-        </tr>
-        <tr>
-            <td style="font-weight: bold;">Email:</td>
-            <td class="editable-field" data-field="email" style="cursor: pointer;">${clientData.email || '-'}</td>
-        </tr>
-        <tr>
-            <td style="font-weight: bold;">Адрес:</td>
-            <td class="editable-field" data-field="address" style="cursor: pointer;">${clientData.address || '-'}</td>
-        </tr>
-        <tr>
-            <td style="font-weight: bold;">Примечания:</td>
-            <td class="editable-field" data-field="notes" style="cursor: pointer;">${clientData.notes || '-'}</td>
-        </tr>
-        ${telegramRow}
-    `;
+    detailsGrid.innerHTML = cardsHTML;
     
     // Добавление обработчиков для inline редактирования
     setTimeout(() => {
@@ -192,6 +260,10 @@ function renderCashRegisters() {
                     <div>${reg.installation_address || '-'}</div>
                     <div style="font-weight: bold;">Наименование ОФД:</div>
                     <div>${ofdName}</div>
+                    <div style="font-weight: bold;">Дата замены ФН:</div>
+                    <div>${reg.fn_replacement_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.fn_replacement_date)}</span>` : '-'}</div>
+                    <div style="font-weight: bold;">Дата продления ОФД:</div>
+                    <div>${reg.ofd_renewal_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.ofd_renewal_date)}</span>` : '-'}</div>
                     <div style="font-weight: bold;">Примечание:</div>
                     <div>${reg.notes || '-'}</div>
                     <div style="font-weight: bold;">Статус:</div>
@@ -275,7 +347,7 @@ function renderRegisterDeadlines() {
                 </div>
                 <div style="font-size: 13px; color: #555;">
                     <i class="material-icons" style="font-size: 14px; vertical-align: middle;">event</i>
-                    ${dl.expiration_date}
+                    ${formatDateRU(dl.expiration_date)}
                 </div>
                 ${dl.notes ? `<div style="font-size: 12px; color: #777; margin-top: 4px;">${dl.notes}</div>` : ''}
             </div>
@@ -334,7 +406,7 @@ function renderGeneralDeadlines() {
                 </div>
                 <div style="font-size: 13px; color: #555;">
                     <i class="material-icons" style="font-size: 14px; vertical-align: middle;">event</i>
-                    ${dl.expiration_date}
+                    ${formatDateRU(dl.expiration_date)}
                 </div>
                 ${dl.notes ? `<div style="font-size: 12px; color: #777; margin-top: 4px;">${dl.notes}</div>` : ''}
             </div>
@@ -524,25 +596,20 @@ async function generateTelegramCode() {
         if (codeMatch && codeMatch[1]) {
             const code = codeMatch[1];
             
-            // Отображаем код с инструкцией
+            // Отображаем код в новой структуре
             const codeDisplay = document.getElementById('telegramCodeDisplay');
+            const codeBlock = document.getElementById('telegramCodeBlock');
             const copyButton = document.getElementById('copyCodeButton');
             
-            codeDisplay.innerHTML = `
-                <span style="color: #4CAF50; font-size: 18px;">${code}</span>
-                <div style="font-size: 11px; color: #666; margin-top: 5px; font-family: inherit; font-weight: normal;">
-                    1. Откройте бота в Telegram<br>
-                    2. Отправьте этот код боту<br>
-                    3. Код действителен 72 часа
-                </div>
-            `;
-            codeDisplay.style.display = 'inline-block';
-            copyButton.style.display = 'inline-block';
-            
-            // Сохраняем код для копирования
-            window.currentTelegramCode = code;
-            
-            showNotification('Код успешно сгенерирован');
+            if (codeDisplay && codeBlock && copyButton) {
+                codeDisplay.textContent = code;
+                codeBlock.style.display = 'flex';
+                
+                // Сохраняем код для копирования
+                window.currentTelegramCode = code;
+                
+                showNotification('Код успешно сгенерирован. Отправьте его боту в Telegram. Код действителен 72 часа.');
+            }
         } else {
             throw new Error('Не удалось извлечь код из ответа');
         }
@@ -638,6 +705,8 @@ function editRegister(registerId) {
     document.getElementById('fiscalDriveNumber').value = register.fiscal_drive_number;
     document.getElementById('installationAddress').value = register.installation_address || '';
     document.getElementById('registerNotes').value = register.notes || '';
+    document.getElementById('fnReplacementDate').value = register.fn_replacement_date || '';
+    document.getElementById('ofdRenewalDate').value = register.ofd_renewal_date || '';
     
     // Заполняем список ОФД провайдеров и устанавливаем выбранный
     const ofdSelect = document.getElementById('ofdProvider');
@@ -669,6 +738,8 @@ async function saveRegister() {
     const installationAddress = document.getElementById('installationAddress').value.trim();
     const ofdProviderId = document.getElementById('ofdProvider').value;  // Получаем ID провайдера
     const registerNotes = document.getElementById('registerNotes').value.trim();
+    const fnReplacementDate = document.getElementById('fnReplacementDate').value || null;
+    const ofdRenewalDate = document.getElementById('ofdRenewalDate').value || null;
 
     if (!registerName || !serialNumber || !fiscalDriveNumber) {
         alert('Заполните все обязательные поля');
@@ -682,7 +753,9 @@ async function saveRegister() {
         fiscal_drive_number: fiscalDriveNumber,
         installation_address: installationAddress || '',
         ofd_provider_id: ofdProviderId ? parseInt(ofdProviderId) : null,  // Отправляем ID провайдера
-        notes: registerNotes || ''
+        notes: registerNotes || '',
+        fn_replacement_date: fnReplacementDate,
+        ofd_renewal_date: ofdRenewalDate
     };
 
     console.log('Текущий clientData:', clientData);
@@ -1054,6 +1127,74 @@ async function deleteDeadline(deadlineId) {
     }
 }
 
+// Отправить дедлайны в Telegram
+async function sendDeadlinesToTelegram() {
+    if (!currentUserId) {
+        alert('Не удалось определить ID клиента');
+        return;
+    }
+    
+    // Проверяем, подключен ли Telegram
+    if (!clientData.telegram_id) {
+        alert('Клиент не подключен к Telegram');
+        return;
+    }
+    
+    // Подтверждение отправки
+    const clientName = clientData.company_name || clientData.full_name || 'клиенту';
+    const totalDeadlines = (clientData.register_deadlines?.length || 0) + (clientData.general_deadlines?.length || 0);
+    
+    if (totalDeadlines === 0) {
+        alert('У клиента нет активных дедлайнов для отправки');
+        return;
+    }
+    
+    if (!confirm(`Отправить ${totalDeadlines} дедлайн(ов) клиенту ${clientName} в Telegram?`)) {
+        return;
+    }
+    
+    // Отключаем кнопку и показываем индикатор загрузки
+    const btn = document.getElementById('sendToTelegramBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 6px;">hourglass_empty</i>Отправка...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/users/${currentUserId}/send-deadlines-telegram`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Ошибка отправки');
+        }
+        
+        const result = await response.json();
+        
+        // Успех
+        showNotification(result.message || 'Дедлайны успешно отправлены в Telegram!');
+        
+        // Возвращаем кнопку в исходное состояние с галочкой
+        btn.innerHTML = '<i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 6px;">check</i>Отправлено';
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Ошибка отправки дедлайнов:', error);
+        alert(`Ошибка: ${error.message}`);
+        
+        // Возвращаем кнопку в исходное состояние
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
 // Обработчики кнопок
 document.addEventListener('DOMContentLoaded', function() {
     // Проверка авторизации
@@ -1094,6 +1235,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('closeDeadlineDialog').addEventListener('click', function() {
         deadlineDialog.close();
     });
+    
+    // Кнопка отправки в Telegram
+    const sendToTelegramBtn = document.getElementById('sendToTelegramBtn');
+    if (sendToTelegramBtn) {
+        sendToTelegramBtn.addEventListener('click', sendDeadlinesToTelegram);
+    }
 
     // Загрузка данных
     Promise.all([

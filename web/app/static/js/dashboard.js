@@ -64,8 +64,8 @@ async function loadDashboardData() {
 
         console.log('🔑 Токен найден, запуск параллельных запросов...');
         
-        // Параллельная загрузка всех данных
-        const [summaryResponse, urgentResponse, typesResponse] = await Promise.all([
+        // Параллельная загрузка данных (убрана загрузка deadline-types)
+        const [summaryResponse, urgentResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/dashboard/stats`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -77,19 +77,12 @@ async function loadDashboardData() {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
-            }),
-            fetch(`${API_BASE_URL}/deadline-types`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
             })
         ]);
 
         console.log('📊 Статусы ответов:', {
             summary: summaryResponse.status,
-            urgent: urgentResponse.status,
-            types: typesResponse.status
+            urgent: urgentResponse.status
         });
 
         if (!summaryResponse.ok) {
@@ -110,22 +103,20 @@ async function loadDashboardData() {
         console.log('✅ Парсинг данных...');
         const summaryData = await summaryResponse.json();
         const urgentData = urgentResponse.ok ? await urgentResponse.json() : [];
-        const typesData = typesResponse.ok ? await typesResponse.json() : [];
 
         console.log('✅ Данные получены:', {
             summary: summaryData,
-            urgentCount: urgentData.length,
-            typesCount: typesData.length
+            urgentCount: urgentData.length
         });
 
         // Обновление карточек статистики
         console.log('📊 Обновление карточек статистики...');
         updateStatisticsCards(summaryData);
 
-        // Отрисовка графиков
-        console.log('📊 Отрисовка графиков...');
-        renderStatusChart(summaryData);
-        renderTypeChart(typesData);
+        // Отрисовка графиков - УБРАНО
+        // console.log('📊 Отрисовка графиков...');
+        // renderStatusChart(summaryData);
+        // renderTypeChart(typesData);
 
         // Заполнение таблицы срочных дедлайнов
         console.log('📊 Отрисовка таблицы срочных дедлайнов...');
@@ -166,7 +157,7 @@ function updateStatisticsCards(data) {
     if (expiredCountEl) expiredCountEl.textContent = data.status_expired || 0;
 }
 
-// Отрисовка графика статусов
+// Отрисовка графика статусов (линейная диаграмма)
 function renderStatusChart(data) {
     const ctx = document.getElementById('statusChart');
     if (!ctx) return;
@@ -185,6 +176,7 @@ function renderStatusChart(data) {
             `Просрочено`
         ],
         datasets: [{
+            label: 'Количество дедлайнов',
             data: [
                 data.status_green || 0,
                 data.status_yellow || 0,
@@ -192,10 +184,10 @@ function renderStatusChart(data) {
                 data.status_expired || 0
             ],
             backgroundColor: [
-                'rgba(76, 175, 80, 0.8)',   // Зеленый
-                'rgba(255, 193, 7, 0.8)',   // Желтый
-                'rgba(244, 67, 54, 0.8)',   // Красный
-                'rgba(158, 158, 158, 0.8)'  // Серый
+                'rgba(76, 175, 80, 0.2)',   // Зеленый
+                'rgba(255, 193, 7, 0.2)',   // Желтый
+                'rgba(244, 67, 54, 0.2)',   // Красный
+                'rgba(158, 158, 158, 0.2)'  // Серый
             ],
             borderColor: [
                 'rgba(76, 175, 80, 1)',
@@ -203,18 +195,31 @@ function renderStatusChart(data) {
                 'rgba(244, 67, 54, 1)',
                 'rgba(158, 158, 158, 1)'
             ],
-            borderWidth: 2
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: [
+                'rgba(76, 175, 80, 1)',
+                'rgba(255, 193, 7, 1)',
+                'rgba(244, 67, 54, 1)',
+                'rgba(158, 158, 158, 1)'
+            ],
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7
         }]
     };
 
     statusChartInstance = new Chart(ctx, {
-        type: 'doughnut',
+        type: 'line',
         data: chartData,
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: {
+                    display: true,
                     position: 'bottom',
                     labels: {
                         font: { size: 12 },
@@ -223,6 +228,14 @@ function renderStatusChart(data) {
                 },
                 title: {
                     display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
                 }
             }
         }
@@ -311,7 +324,7 @@ function renderTypeChart(typeStats) {
     });
 }
 
-// Отрисовка таблицы срочных дедлайнов
+// Отрисовка таблицы срочных дедлайнов (включая просроченные)
 function renderUrgentDeadlines(deadlines) {
     const tableBody = document.getElementById('urgentDeadlinesTable');
     if (!tableBody) return;
@@ -351,13 +364,8 @@ function renderUrgentDeadlines(deadlines) {
             statusColor = '#4CAF50';
         }
 
-        // Форматирование даты
-        const expirationDate = new Date(deadline.expiration_date);
-        const formattedDate = expirationDate.toLocaleDateString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
+        // Форматирование даты в российский формат ДД.ММ.ГГГГ
+        const formattedDate = formatDateRU(deadline.expiration_date);
         
         // Получение имени клиента и типа дедлайна
         const clientName = deadline.client?.company_name || 'Не указан';
@@ -437,14 +445,14 @@ function switchSection(sectionId) {
     
     // Обновить заголовок страницы
     const sectionTitles = {
-        'statistics': 'Статистика',
+        'statistics': 'Управление Дедлайнами',
         'users': 'Клиенты',
         'deadlines': 'Дедлайны',
         'deadline-types': 'Типы дедлайнов',
         'managers': 'Пользователи',
         'export': 'Экспорт данных'
     };
-    document.title = `${sectionTitles[sectionId] || 'Dashboard'} - KKT Management`;
+    document.title = `${sectionTitles[sectionId] || 'Управление Дедлайнами'} - Релабс Центр`;
     
     // Загрузить данные для секции
     loadSectionData(sectionId);
@@ -562,4 +570,69 @@ function showError(message) {
         console.warn('⚠️ Snackbar недоступен, используется alert');
         alert(message);
     }
+}
+
+// Функции навигации для кликабельных карточек статистики
+function navigateToClients() {
+    // Сбрасываем фильтр неактивных клиентов
+    if (typeof showInactiveUsers !== 'undefined') {
+        showInactiveUsers = false;
+    }
+    switchSection('users');
+    window.location.hash = 'users';
+}
+
+function navigateToAllDeadlines() {
+    switchSection('deadlines');
+    window.location.hash = 'deadlines';
+    // Сбросим все фильтры для отображения всех дедлайнов
+    setTimeout(() => {
+        if (typeof resetFilters === 'function') {
+            resetFilters();
+        }
+    }, 100);
+}
+
+function navigateToUrgentDeadlines() {
+    switchSection('deadlines');
+    window.location.hash = 'deadlines';
+    // Установим фильтр для срочных дедлайнов (0-7 дней)
+    setTimeout(() => {
+        // Дождемся загрузки данных и отрисовки фильтров
+        const checkAndApply = () => {
+            const filterDays = document.getElementById('filterDays');
+            if (filterDays) {
+                filterDays.value = 'urgent';
+                if (typeof applyFilters === 'function') {
+                    applyFilters();
+                }
+            } else {
+                // Если элемент еще не появился, повторим через 50мс
+                setTimeout(checkAndApply, 50);
+            }
+        };
+        checkAndApply();
+    }, 100);
+}
+
+function navigateToExpiredDeadlines() {
+    switchSection('deadlines');
+    window.location.hash = 'deadlines';
+    // Установим фильтр для просроченных дедлайнов
+    setTimeout(() => {
+        // Дождемся загрузки данных и отрисовки фильтров
+        const checkAndApply = () => {
+            const filterDays = document.getElementById('filterDays');
+            if (filterDays) {
+                filterDays.value = 'expired';
+                if (typeof applyFilters === 'function') {
+                    applyFilters();
+                }
+            } else {
+                // Если элемент еще не появился, повторим через 50мс
+                setTimeout(checkAndApply, 50);
+            }
+        };
+        checkAndApply();
+    }, 100);
 }

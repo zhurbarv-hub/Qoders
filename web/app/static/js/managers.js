@@ -139,11 +139,10 @@ function getRoleLabel(role) {
 }
 
 /**
- * Форматирование даты и времени
+ * Форматирование даты и времени - российский формат ДД.ММ.ГГГГ ЧЧ:ММ
  */
 function formatDateTime(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('ru-RU');
+    return formatDateTimeRU(dateString);
 }
 
 /**
