@@ -39,9 +39,9 @@ upstream kkt_backend {
     keepalive 32;
 }
 
-# HTTP сервер (редирект на HTTPS будет добавлен certbot)
+# HTTP сервер на порту 8080
 server {
-    listen 80;
+    listen 8080;
     server_name $DOMAIN;
 
     # Статические файлы

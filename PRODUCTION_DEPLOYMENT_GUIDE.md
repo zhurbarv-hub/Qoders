@@ -39,7 +39,7 @@ mkdir -p /home/kktapp/.ssh
 
 # Настройка firewall
 sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
+sudo ufw allow 8080/tcp
 sudo ufw allow 443/tcp
 sudo ufw enable
 ```
@@ -251,7 +251,7 @@ upstream kkt_backend {
 
 # HTTP сервер (редирект на HTTPS)
 server {
-    listen 80;
+    listen 8080;
     server_name ВАШ_ДОМЕН;
     
     return 301 https://$server_name$request_uri;
@@ -374,7 +374,7 @@ crontab -e
    - .env файл: права 600 (только владелец может читать)
 
 2. **Firewall:**
-   - Открыты только порты 22, 80, 443
+   - Открыты только порты 22, 8080, 443
    - PostgreSQL (5432) доступен только локально
    - Web app (8000) доступен только локально
 
