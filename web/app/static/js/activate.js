@@ -1,5 +1,5 @@
-// Константы API
-const API_BASE_URL = 'http://localhost:8000/api';
+// Константы API - используем относительный путь для работы на любом домене
+const API_BASE_URL = window.location.origin + '/api';
 
 // Получение токена из URL
 const urlParams = new URLSearchParams(window.location.search);

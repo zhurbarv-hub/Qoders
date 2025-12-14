@@ -1,5 +1,5 @@
-// API URL
-const API_BASE_URL = 'http://localhost:8000/api';
+// API URL - используем относительный путь для работы на любом домене
+const API_BASE_URL = window.location.origin + '/api';
 
 // Утилитарные функции для работы с токеном
 function getToken() {

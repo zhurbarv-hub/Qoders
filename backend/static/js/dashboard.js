@@ -1,5 +1,5 @@
-// Константы API
-const API_BASE_URL = 'http://localhost:8000/api';
+// Константы API - используем относительный путь для работы на любом домене
+const API_BASE_URL = window.location.origin + '/api';
 
 // Глобальная переменная для отслеживания текущего вида
 let currentView = 'dashboard';
