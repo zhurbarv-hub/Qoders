@@ -10,7 +10,8 @@ from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 import logging
 
-from ..models.client import Deadline, DeadlineType
+from ..models.client import Deadline
+from ..models import DeadlineType
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ class CashRegisterDeadlineService:
         notes = f"Автоматически создано из карточки ККТ '{register_name}' ({datetime.now().strftime('%Y-%m-%d %H:%M')})"
         
         deadline = Deadline(
-            user_id=user_id,
+            client_id=user_id,  # Используем client_id вместо user_id
             cash_register_id=cash_register_id,
             deadline_type_id=deadline_type_id,
             expiration_date=expiration_date,

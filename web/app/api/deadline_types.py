@@ -170,14 +170,14 @@ async def delete_deadline_type(
             detail=f"Тип дедлайна с ID {type_id} не найден"
         )
     
-    # Очистка deadline_type_id в связанных дедлайнах
+    # Очистка deadline_type_id в связанных дедлайнах (установка NULL)
     from ..models.client import Deadline
     updated_count = db.query(Deadline).filter(
         Deadline.deadline_type_id == type_id
     ).update({"deadline_type_id": None}, synchronize_session=False)
     
     if updated_count > 0:
-        print(f"ℹ️ Очищено поле deadline_type_id в {updated_count} дедлайнах")
+        print(f"ℹ️ Очищено поле типа в {updated_count} дедлайнах (тип '{deadline_type.type_name}' удален)")
     
     # Удаление типа
     db.delete(deadline_type)

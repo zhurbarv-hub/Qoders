@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление пользователями - Релабс Центр</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        /* Современный стиль страницы */
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px;
+            margin-bottom: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .page-header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .page-header p {
+            margin: 8px 0 0 0;
+            opacity: 0.95;
+            font-size: 14px;
+        }
+        
+        /* Фильтры и поиск */
+        .filters-section {
+            background: white;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .filters-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 16px;
+            align-items: end;
+        }
+        
+        .filter-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .filter-group input,
+        .filter-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            box-sizing: border-box;
+        }
+        
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* Таблица пользователей */
+        .users-table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .users-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .users-table th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .users-table td {
+            padding: 14px 16px;
+            font-size: 14px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .users-table tbody tr {
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        
+        .users-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        /* Бейджи ролей */
+        .role-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .role-badge.admin {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .role-badge.manager {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .role-badge.client {
+            background: #28a745;
+            color: white;
+        }
+        
+        /* Статус активности */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-badge.active {
+            background: #e8f5e9;
+            color: #28a745;
+        }
+        
+        .status-badge.inactive {
+            background: #ffebee;
+            color: #dc3545;
+        }
+        
+        /* Кнопки действий */
+        .action-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .action-button.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .action-button.primary:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transform: translateY(-1px);
+        }
+        
+        .action-button.secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .action-button.secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        /* Пагинация */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .pagination button {
+            padding: 8px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            border-color: #667eea;
+            background: #f0f0f0;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pagination .page-info {
+            padding: 0 12px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-layout">
+        <!-- Боковое меню -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📈 Релабс Центр</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/static/dashboard.html" class="nav-item">
+                    <i class="material-icons">dashboard</i>
+                    <span>Главная панель</span>
+                </a>
+                <a href="/static/users-management.html" class="nav-item active">
+                    <i class="material-icons">people</i>
+                    <span>Управление пользователями</span>
+                </a>
+                <a href="/static/my-profile.html" class="nav-item">
+                    <i class="material-icons">account_circle</i>
+                    <span>Мой профиль</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <i class="material-icons">account_circle</i>
+                    <span id="sidebarUserName">Загрузка...</span>
+                </div>
+                <button class="mdl-button mdl-js-button mdl-button--raised" id="sidebarLogoutBtn">
+                    <i class="material-icons">exit_to_app</i>
+                    Выход
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Основной контент -->
+        <main class="main-content">
+            <!-- Заголовок страницы -->
+            <div class="page-header">
+                <h1>
+                    <i class="material-icons" style="font-size: 32px;">people</i>
+                    Управление пользователями
+                </h1>
+                <p>Добавление, редактирование и управление правами доступа</p>
+            </div>
+            
+            <!-- Кнопка добавления пользователя -->
+            <div style="margin-bottom: 20px;">
+                <button class="action-button primary" id="addUserBtn">
+                    <i class="material-icons" style="font-size: 18px;">add</i>
+                    Добавить пользователя
+                </button>
+            </div>
+            
+            <!-- Фильтры и поиск -->
+            <div class="filters-section">
+                <div class="filters-row">
+                    <div class="filter-group">
+                        <label>
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; color: #667eea;">search</i>
+                            Поиск
+                        </label>
+                        <input type="text" id="searchInput" placeholder="Email, имя, ИНН...">
+                    </div>
+                    <div class="filter-group">
+                        <label>
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; color: #667eea;">badge</i>
+                            Роль
+                        </label>
+                        <select id="roleFilter">
+                            <option value="">Все роли</option>
+                            <option value="admin">Администраторы</option>
+                            <option value="manager">Менеджеры</option>
+                            <option value="client">Клиенты</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; color: #667eea;">check_circle</i>
+                            Статус
+                        </label>
+                        <select id="statusFilter">
+                            <option value="">Все</option>
+                            <option value="true">Активные</option>
+                            <option value="false">Неактивные</option>
+                        </select>
+                    </div>
+                    <button class="action-button primary" id="applyFiltersBtn">
+                        <i class="material-icons" style="font-size: 18px;">filter_list</i>
+                        Применить
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Таблица пользователей -->
+            <div class="users-table-container">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Имя / Компания</th>
+                            <th>Email</th>
+                            <th>Роль</th>
+                            <th>Телефон</th>
+                            <th>Telegram</th>
+                            <th>Статус</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+                                Загрузка пользователей...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Пагинация -->
+            <div class="pagination" id="paginationContainer">
+                <button id="prevPageBtn" disabled>
+                    <i class="material-icons">chevron_left</i>
+                </button>
+                <span class="page-info" id="pageInfo">Страница 1 из 1</span>
+                <button id="nextPageBtn" disabled>
+                    <i class="material-icons">chevron_right</i>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно: Добавить/Редактировать пользователя -->
+    <div class="modal-overlay" id="userModalOverlay" style="display: none;">
+        <div class="modal" style="width: 700px; max-width: 90vw; border-radius: 12px; padding: 0; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0; position: sticky; top: 0; z-index: 10;">
+                <h3 style="margin: 0; font-size: 20px; font-weight: 500;" id="userModalTitle">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 8px; font-size: 24px;">person_add</i>
+                    Добавить пользователя
+                </h3>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="userForm">
+                    <input type="hidden" id="userId">
+                    
+                    <!-- Роль пользователя -->
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">badge</i>
+                            Роль *
+                        </label>
+                        <select id="userRole" required onchange="handleRoleChange()"
+                                style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="client">Клиент</option>
+                            <option value="manager">Менеджер</option>
+                            <option value="admin">Администратор</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Основная информация -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">account_circle</i>
+                                Логин *
+                            </label>
+                            <input type="text" id="userUsername" required minlength="3" maxlength="50" pattern="[a-zA-Z0-9_]+"
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <small style="color: #999;">Латинские буквы, цифры, подчеркивание</small>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">person</i>
+                                Полное имя *
+                            </label>
+                            <input type="text" id="userFullName" required
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">email</i>
+                                Email *
+                            </label>
+                            <input type="email" id="userEmail" required
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">phone</i>
+                                Телефон
+                            </label>
+                            <input type="tel" id="userPhone"
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        </div>
+                        <div id="statusField">
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">check_circle</i>
+                                Статус
+                            </label>
+                            <select id="userIsActive"
+                                    style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                    onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                    onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                                <option value="true">Активен</option>
+                                <option value="false">Неактивен</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Поля для клиентов -->
+                    <div id="clientFields">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                    <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">business</i>
+                                    Название компании *
+                                </label>
+                                <input type="text" id="userCompanyName"
+                                       style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                       onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                       onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                    <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">confirmation_number</i>
+                                    ИНН *
+                                </label>
+                                <input type="text" id="userInn" maxlength="12" pattern="[0-9]{10,12}"
+                                       style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                       onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                       onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Адрес -->
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">location_on</i>
+                            Адрес
+                        </label>
+                        <textarea id="userAddress" rows="2"
+                                  style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box; resize: vertical;"
+                                  onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                  onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'"></textarea>
+                    </div>
+                    
+                    <!-- Примечания -->
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">notes</i>
+                            Примечания
+                        </label>
+                        <textarea id="userNotes" rows="2"
+                                  style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box; resize: vertical;"
+                                  onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                  onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'"></textarea>
+                    </div>
+                    
+                    <!-- Кнопки -->
+                    <div style="padding: 16px 0; display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" onclick="closeUserModal()" 
+                                style="padding: 10px 24px; border: 2px solid #e0e0e0; background: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="material-icons" style="font-size: 18px;">close</i>
+                            Отмена
+                        </button>
+                        <button type="submit" 
+                                style="padding: 10px 24px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 8px rgba(102,126,234,0.3); transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="material-icons" style="font-size: 18px;">save</i>
+                            <span id="saveButtonText">Создать</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Смена пароля -->
+    <div class="modal-overlay" id="passwordModalOverlay" style="display: none;">
+        <div class="modal" style="width: 500px; max-width: 90vw; border-radius: 12px; padding: 0; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                <h3 style="margin: 0; font-size: 20px; font-weight: 500;">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 8px; font-size: 24px;">vpn_key</i>
+                    Смена пароля
+                </h3>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="passwordForm">
+                    <input type="hidden" id="passwordUserId">
+                    
+                    <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">
+                        Установите новый пароль для пользователя <strong id="passwordUserName"></strong>
+                    </p>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">lock</i>
+                            Новый пароль *
+                        </label>
+                        <input type="password" id="newPassword" required minlength="6"
+                               style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                               onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                               onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        <small style="color: #999;">Минимум 6 символов</small>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">lock</i>
+                            Подтвердите пароль *
+                        </label>
+                        <input type="password" id="confirmPassword" required minlength="6"
+                               style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                               onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                               onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                    </div>
+                    
+                    <div style="padding: 16px 0; display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" onclick="closePasswordModal()" 
+                                style="padding: 10px 24px; border: 2px solid #e0e0e0; background: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="material-icons" style="font-size: 18px;">close</i>
+                            Отмена
+                        </button>
+                        <button type="submit" 
+                                style="padding: 10px 24px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 8px rgba(102,126,234,0.3); transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="material-icons" style="font-size: 18px;">save</i>
+                            Сменить пароль
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+    <script src="/static/js/users-management.js"></script>
+</body>
+</html>

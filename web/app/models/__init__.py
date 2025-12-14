@@ -2,18 +2,17 @@
 """
 Модели веб-приложения
 """
-from .client import Client, DeadlineType, Deadline, Contact, NotificationLog
-from .user import WebUser
+from .client import DeadlineType, Deadline, NotificationLog
+from .user import WebUser, User
 from .cash_register import CashRegister
 from .ofd_provider import OFDProvider
 
 __all__ = [
-    'Client',
     'DeadlineType', 
     'Deadline',
-    'Contact',
     'NotificationLog',
     'WebUser',
+    'User',
     'CashRegister',
     'OFDProvider'
 ]

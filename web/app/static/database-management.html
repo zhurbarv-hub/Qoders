@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Обслуживание БД - Релабс Центр</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=5.0">
+</head>
+<body>
+    <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header mdl-layout--fixed-drawer">
+        <!-- Header -->
+        <header class="mdl-layout__header">
+            <div class="mdl-layout__header-row">
+                <span class="mdl-layout-title">🔧 Обслуживание БД</span>
+                <div class="mdl-layout-spacer"></div>
+                <span class="user-info" id="userInfo"></span>
+                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="logout()">
+                    <i class="material-icons">exit_to_app</i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Левая навигация -->
+        <div class="mdl-layout__drawer">
+            <span class="mdl-layout-title">📊 Релабс Центр</span>
+            <nav class="mdl-navigation">
+                <a class="mdl-navigation__link" href="/static/dashboard.html">
+                    <i class="material-icons">dashboard</i> Дашборд
+                </a>
+                <a class="mdl-navigation__link mdl-navigation__link--current" href="/static/database-management.html">
+                    <i class="material-icons">storage</i> Обслуживание БД
+                </a>
+            </nav>
+        </div>
+
+        <!-- Основной контент -->
+        <main class="mdl-layout__content">
+            <div class="page-content">
+                <!-- Кнопки управления -->
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
+                            <div class="mdl-card__title">
+                                <h2 class="mdl-card__title-text">Управление резервными копиями</h2>
+                            </div>
+                            <div class="mdl-card__supporting-text">
+                                <div class="action-buttons" style="display: flex; gap: 16px; flex-wrap: wrap;">
+                                    <!-- Создать бэкап -->
+                                    <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" onclick="createBackup()">
+                                        <i class="material-icons">backup</i>
+                                        Создать резервную копию
+                                    </button>
+
+                                    <!-- Восстановить -->
+                                    <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent" onclick="showRestoreDialog()">
+                                        <i class="material-icons">restore</i>
+                                        Восстановить БД
+                                    </button>
+
+                                    <!-- Обновить список -->
+                                    <button class="mdl-button mdl-js-button mdl-button--raised" onclick="loadBackups()">
+                                        <i class="material-icons">refresh</i>
+                                        Обновить список
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Статистика -->
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--4-col">
+                        <div class="info-card mdl-card mdl-shadow--2dp">
+                            <div class="mdl-card__title">
+                                <h2 class="mdl-card__title-text">📦 Всего копий</h2>
+                            </div>
+                            <div class="mdl-card__supporting-text">
+                                <div class="stat-value" id="totalBackups">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mdl-cell mdl-cell--4-col">
+                        <div class="info-card mdl-card mdl-shadow--2dp">
+                            <div class="mdl-card__title">
+                                <h2 class="mdl-card__title-text">💾 Общий размер</h2>
+                            </div>
+                            <div class="mdl-card__supporting-text">
+                                <div class="stat-value" id="totalSize">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mdl-cell mdl-cell--4-col">
+                        <div class="info-card mdl-card mdl-shadow--2dp">
+                            <div class="mdl-card__title">
+                                <h2 class="mdl-card__title-text">📅 Последний бэкап</h2>
+                            </div>
+                            <div class="mdl-card__supporting-text">
+                                <div class="stat-value" id="lastBackup">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Список резервных копий -->
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
+                            <div class="mdl-card__title">
+                                <h2 class="mdl-card__title-text">Список резервных копий</h2>
+                            </div>
+                            <div class="mdl-card__supporting-text">
+                                <table class="mdl-data-table mdl-js-data-table" style="width: 100%;" id="backupsTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="mdl-data-table__cell--non-numeric">Файл</th>
+                                            <th class="mdl-data-table__cell--non-numeric">Дата создания</th>
+                                            <th class="mdl-data-table__cell--non-numeric">Создал</th>
+                                            <th>Размер (МБ)</th>
+                                            <th class="mdl-data-table__cell--non-numeric">Описание</th>
+                                            <th class="mdl-data-table__cell--non-numeric">Действия</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="backupsTableBody">
+                                        <!-- Данные загружаются динамически -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Диалог создания бэкапа -->
+    <dialog class="mdl-dialog" id="createBackupDialog">
+        <h4 class="mdl-dialog__title">Создать резервную копию</h4>
+        <div class="mdl-dialog__content">
+            <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                <input class="mdl-textfield__input" type="text" id="backupDescription">
+                <label class="mdl-textfield__label" for="backupDescription">Описание (необязательно)</label>
+            </div>
+        </div>
+        <div class="mdl-dialog__actions">
+            <button type="button" class="mdl-button" onclick="closeCreateBackupDialog()">Отмена</button>
+            <button type="button" class="mdl-button mdl-button--colored" onclick="confirmCreateBackup()">Создать</button>
+        </div>
+    </dialog>
+
+    <!-- Диалог восстановления -->
+    <dialog class="mdl-dialog" id="restoreDialog">
+        <h4 class="mdl-dialog__title">⚠️ Восстановление базы данных</h4>
+        <div class="mdl-dialog__content">
+            <p><strong>ВНИМАНИЕ!</strong> Все текущие данные будут перезаписаны!</p>
+            <p>Выберите резервную копию:</p>
+            <select class="mdl-textfield__input" id="restoreBackupSelect" style="width: 100%; padding: 8px;">
+                <!-- Опции загружаются динамически -->
+            </select>
+            <br><br>
+            <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                <input class="mdl-textfield__input" type="password" id="restorePassword">
+                <label class="mdl-textfield__label" for="restorePassword">Ваш пароль администратора</label>
+            </div>
+        </div>
+        <div class="mdl-dialog__actions">
+            <button type="button" class="mdl-button" onclick="closeRestoreDialog()">Отмена</button>
+            <button type="button" class="mdl-button mdl-button--accent" onclick="confirmRestore()">Восстановить</button>
+        </div>
+    </dialog>
+
+    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+    <script src="/static/js/database-management.js?v=20251214193900"></script>
+
+    <style>
+        .info-card {
+            width: 100%;
+            min-height: 120px;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #3f51b5;
+            text-align: center;
+        }
+        .action-buttons i {
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .mdl-dialog {
+            min-width: 500px;
+        }
+    </style>
+</body>
+</html>

@@ -9,7 +9,7 @@ import bcrypt
 from sqlalchemy.orm import Session
 
 # ОТНОСИТЕЛЬНЫЕ ИМПОРТЫ
-from ..models.user import WebUser
+from ..models.user import User
 from ..config import settings
 
 
@@ -42,11 +42,23 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def authenticate_user(db: Session, username: str, password: str) -> Optional[WebUser]:
-    """Аутентификация пользователя"""
-    user = db.query(WebUser).filter(WebUser.username == username).first()
+def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+    """Аутентификация пользователя
+    
+    Ищет пользователя по username или email в таблице users
+    """
+    # Попробуем найти по username
+    user = db.query(User).filter(User.username == username).first()
+    
+    # Если не найден по username, попробуем по email
+    if not user:
+        user = db.query(User).filter(User.email == username).first()
     
     if not user:
+        return None
+    
+    # Проверка наличия пароля
+    if not user.password_hash:
         return None
     
     if not verify_password(password, user.password_hash):
@@ -55,7 +67,8 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Web
     if not user.is_active:
         return None
     
-    user.last_login = datetime.utcnow()
+    # Обновляем время последнего входа
+    user.last_interaction = datetime.utcnow()
     db.commit()
     
     return user

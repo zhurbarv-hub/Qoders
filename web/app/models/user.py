@@ -41,6 +41,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     
     # Аутентификация
+    username = Column(String(50), unique=True, nullable=False, index=True)  # Логин (латинские символы)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)  # NULL для клиентов, которые еще не установили пароль
     
@@ -77,8 +78,9 @@ class User(Base):
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Связи
-    # Пока не используем relationship с Deadline, чтобы избежать циркулярных импортов
-    # deadlines = relationship("Deadline", back_populates="user", cascade="all, delete-orphan")
+    cash_registers = relationship("CashRegister", back_populates="client", foreign_keys="CashRegister.client_id", cascade="all, delete-orphan")
+    client_deadlines = relationship("Deadline", foreign_keys="Deadline.client_id", back_populates="client", cascade="all, delete-orphan")
+    user_deadlines = relationship("Deadline", foreign_keys="Deadline.user_id", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', role='{self.role}', company='{self.company_name}')>"

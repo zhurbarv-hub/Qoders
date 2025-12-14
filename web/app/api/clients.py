@@ -9,9 +9,9 @@ from typing import Optional
 import math
 
 from ..dependencies import get_db
-from ..models.client import Client, Deadline
-from ..models.cash_register import CashRegister
 from ..models.user import User
+from ..models.client import Deadline
+from ..models.cash_register import CashRegister
 from ..models.client_schemas import (
     ClientCreate,
     ClientUpdate,
@@ -52,21 +52,21 @@ async def get_clients(
 ):
     """Получить список всех клиентов с пагинацией и фильтрами"""
     
-    # Базовый запрос
-    query = db.query(Client)
+    # Базовый запрос (клиенты - это пользователи с role='client')
+    query = db.query(User).filter(User.role == 'client')
     
     # Применение фильтров
     if is_active is not None:
-        query = query.filter(Client.is_active == is_active)
+        query = query.filter(User.is_active == is_active)
     
     # Поиск
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(
             or_(
-                Client.name.ilike(search_pattern),
-                Client.inn.like(search_pattern),
-                Client.contact_person.ilike(search_pattern)
+                User.company_name.ilike(search_pattern),
+                User.inn.like(search_pattern),
+                User.full_name.ilike(search_pattern)
             )
         )
     
@@ -75,7 +75,7 @@ async def get_clients(
     
     # Пагинация
     offset = (page - 1) * page_size
-    clients = query.order_by(Client.name).offset(offset).limit(page_size).all()
+    clients = query.order_by(User.company_name).offset(offset).limit(page_size).all()
     
     # Расчёт количества страниц
     total_pages = math.ceil(total / page_size) if total > 0 else 1
@@ -96,7 +96,7 @@ async def get_client(
     current_user: dict = Depends(get_current_user)
 ):
     """Получить данные конкретного клиента"""
-    client = db.query(Client).filter(Client.id == client_id).first()
+    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
     
     if not client:
         raise HTTPException(
@@ -123,23 +123,26 @@ async def create_client(
         )
     
     # Проверка уникальности ИНН
-    existing_client = db.query(Client).filter(Client.inn == client_data.inn).first()
+    existing_client = db.query(User).filter(User.inn == client_data.inn).first()
     if existing_client:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Клиент с ИНН {client_data.inn} уже существует"
         )
     
-    # Проверка уникальности названия
-    existing_name = db.query(Client).filter(Client.name == client_data.name).first()
-    if existing_name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Клиент с названием '{client_data.name}' уже существует"
-        )
+    # Проверка уникальности названия компании
+    if hasattr(client_data, 'company_name') and client_data.company_name:
+        existing_name = db.query(User).filter(User.company_name == client_data.company_name).first()
+        if existing_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Клиент с названием '{client_data.company_name}' уже существует"
+            )
     
-    # Создание клиента
-    new_client = Client(**client_data.model_dump())
+    # Создание клиента (User с role='client')
+    client_dict = client_data.model_dump()
+    client_dict['role'] = 'client'  # Обязательно устанавливаем роль
+    new_client = User(**client_dict)
     db.add(new_client)
     db.commit()
     db.refresh(new_client)
@@ -164,7 +167,7 @@ async def update_client(
         )
     
     # Поиск клиента
-    client = db.query(Client).filter(Client.id == client_id).first()
+    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -173,20 +176,20 @@ async def update_client(
     
     # Проверка уникальности ИНН (если изменяется)
     if client_data.inn and client_data.inn != client.inn:
-        existing = db.query(Client).filter(Client.inn == client_data.inn).first()
+        existing = db.query(User).filter(User.inn == client_data.inn).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Клиент с ИНН {client_data.inn} уже существует"
             )
     
-    # Проверка уникальности названия (если изменяется)
-    if client_data.name and client_data.name != client.name:
-        existing = db.query(Client).filter(Client.name == client_data.name).first()
+    # Проверка уникальности названия компании (если изменяется)
+    if hasattr(client_data, 'company_name') and client_data.company_name and client_data.company_name != client.company_name:
+        existing = db.query(User).filter(User.company_name == client_data.company_name).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Клиент с названием '{client_data.name}' уже существует"
+                detail=f"Клиент с названием '{client_data.company_name}' уже существует"
             )
     
     # Обновление полей
@@ -216,7 +219,7 @@ async def delete_client(
         )
     
     # Поиск клиента
-    client = db.query(Client).filter(Client.id == client_id).first()
+    client = db.query(User).filter(User.id == client_id, User.role == 'client').first()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

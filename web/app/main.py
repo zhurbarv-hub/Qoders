@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # ОТНОСИТЕЛЬНЫЕ ИМПОРТЫ
 from .config import settings
-from .api import auth, clients, deadline_types, deadlines, dashboard, export, users, cash_registers, ofd_providers
+from .api import auth, clients, deadline_types, deadlines, dashboard, export, users, cash_registers, ofd_providers, database_management
 
 # Настройка логирования
 logging.basicConfig(
@@ -62,6 +62,7 @@ app.include_router(export.router)
 app.include_router(users.router)
 app.include_router(cash_registers.router)
 app.include_router(ofd_providers.router)
+app.include_router(database_management.router)
 
 # Путь к статическим файлам
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -91,6 +92,7 @@ async def startup_event():
     logger.info(f"  - /api/ofd-providers (OFD Providers)")
     logger.info(f"  - /api/dashboard (Dashboard)")
     logger.info(f"  - /api/export (Data Export)")
+    logger.info(f"  - /api/database (Database Management)")
 
 
 @app.on_event("shutdown")

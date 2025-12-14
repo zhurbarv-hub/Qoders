@@ -18,10 +18,10 @@ router = APIRouter(prefix="/api", tags=["OFD Providers"])
 class OFDProviderResponse(BaseModel):
     """Схема ответа для ОФД провайдера"""
     id: int
-    provider_name: str
-    inn: str | None = None
+    name: str
     website: str | None = None
     support_phone: str | None = None
+    support_email: str | None = None
     is_active: bool
     
     class Config:
@@ -48,7 +48,7 @@ async def get_ofd_providers(
     if active_only:
         query = query.filter(OFDProvider.is_active == True)
     
-    providers = query.order_by(OFDProvider.provider_name).all()
+    providers = query.order_by(OFDProvider.name).all()
     
     return providers
 

@@ -12,8 +12,8 @@ class WebSettings:
     
     # Безопасность
     secret_key: str = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production-please-make-it-long-and-random")
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 480  # 8 часов
+    algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
+    access_token_expire_minutes: int = int(os.getenv("JWT_EXPIRATION_HOURS", "8")) * 60  # Конвертируем часы в минуты
     
     # База данных
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///database/kkt_services.db")
@@ -23,13 +23,9 @@ class WebSettings:
     port: int = 8000
     debug: bool = True
     
-    # CORS
-    cors_origins: List[str] = [
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://localhost:3000",  # Vite dev server (CoreUI admin)
-        "http://127.0.0.1:3000"
-    ]
+    # CORS - читаем из .env
+    _cors_origins_str: str = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+    cors_origins: List[str] = [origin.strip() for origin in _cors_origins_str.split(',')]
     
     # SMTP настройки для отправки email
     smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")

@@ -186,6 +186,14 @@ async def create_user(
             detail=f"Пользователь с email '{user_data.email}' уже существует"
         )
     
+    # Проверка уникальности username
+    existing_username = db.query(User).filter(User.username == user_data.username).first()
+    if existing_username:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Пользователь с логином '{user_data.username}' уже существует"
+        )
+    
     # Проверка уникальности ИНН для клиентов
     if user_data.inn:
         existing_inn = db.query(User).filter(User.inn == user_data.inn).first()
@@ -287,6 +295,11 @@ async def update_user(
     
     # Обновление данных
     update_data = user_data.model_dump(exclude_unset=True)
+    
+    # Обработка смены пароля
+    if 'password' in update_data and update_data['password']:
+        update_data['password_hash'] = get_password_hash(update_data['password'])
+        del update_data['password']
     
     # Проверка уникальности email при изменении
     if 'email' in update_data and update_data['email'] != user.email:
@@ -611,13 +624,13 @@ async def get_user_full_details(
     
     # Получить кассовые аппараты
     cash_registers = db.query(CashRegister).filter(
-        CashRegister.user_id == user_id,
+        CashRegister.client_id == user_id,
         CashRegister.is_active == True
-    ).order_by(CashRegister.register_name).all()
+    ).order_by(CashRegister.factory_number).all()
     
     # Получить дедлайны
     deadlines = db.query(Deadline).filter(
-        Deadline.user_id == user_id
+        Deadline.client_id == user_id
     ).order_by(Deadline.expiration_date).all()
     
     today = date.today()
@@ -654,8 +667,8 @@ async def get_user_full_details(
         if deadline.cash_register_id:
             # Найти кассу
             register = next((r for r in cash_registers if r.id == deadline.cash_register_id), None)
-            deadline_data["cash_register_name"] = register.register_name if register else f"Касса #{deadline.cash_register_id}"
-            deadline_data["installation_address"] = register.installation_address if register else None
+            deadline_data["cash_register_name"] = f"{register.model} ({register.factory_number})" if register else f"Касса #{deadline.cash_register_id}"
+            deadline_data["installation_address"] = None  # Поле installation_address больше не существует
             deadline_data["deadline_id"] = deadline.id
             register_deadlines.append(deadline_data)
         else:
@@ -682,14 +695,14 @@ async def get_user_full_details(
         "cash_registers": [
             {
                 "id": reg.id,
-                "serial_number": reg.serial_number,
-                "fiscal_drive_number": reg.fiscal_drive_number,
-                "register_name": reg.register_name,
-                "installation_address": reg.installation_address,
+                "factory_number": reg.factory_number,
+                "registration_number": reg.registration_number,
+                "model": reg.model,
+                "fn_number": reg.fn_number,
                 "ofd_provider_id": reg.ofd_provider_id,
                 "notes": reg.notes,
-                "fn_replacement_date": reg.fn_replacement_date,
-                "ofd_renewal_date": reg.ofd_renewal_date,
+                "fn_expiry_date": reg.fn_expiry_date,
+                "ofd_expiry_date": reg.ofd_expiry_date,
                 "is_active": reg.is_active
             }
             for reg in cash_registers
@@ -737,7 +750,7 @@ async def send_deadlines_to_telegram(
     
     # Получаем активные дедлайны клиента
     deadlines = db.query(Deadline).filter(
-        Deadline.user_id == user_id,
+        Deadline.client_id == user_id,
         Deadline.status == 'active'
     ).order_by(Deadline.expiration_date).all()
     

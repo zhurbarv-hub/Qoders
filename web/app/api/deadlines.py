@@ -47,25 +47,22 @@ def calculate_days_until_expiration(expiration_date: date) -> int:
 
 def enrich_deadline_with_details(deadline: Deadline, db: Session = None) -> dict:
     """Обогащение данных дедлайна дополнительной информацией"""
-    # Вручную загружаем связанные объекты, так как relationships закомментированы
     client = None
     deadline_type = None
     
     if db:
-        # Поддержка как старой (client), так и новой (user) модели
-        if deadline.user_id:
-            client = db.query(User).filter(User.id == deadline.user_id).first()
-        elif deadline.client_id:
-            from app.models.client import Client
-            client = db.query(Client).filter(Client.id == deadline.client_id).first()
+        # Поддержка дедлайнов с client_id (все дедлайны теперь используют User)
+        if deadline.client_id:
+            client = db.query(User).filter(User.id == deadline.client_id).first()
         
         if deadline.deadline_type_id:
             deadline_type = db.query(DeadlineType).filter(DeadlineType.id == deadline.deadline_type_id).first()
     
     return {
         "id": deadline.id,
-        "client_id": deadline.user_id or deadline.client_id,
+        "client_id": deadline.client_id,
         "deadline_type_id": deadline.deadline_type_id,
+        "cash_register_id": deadline.cash_register_id,
         "expiration_date": deadline.expiration_date,
         "status": deadline.status,
         "notes": deadline.notes,
@@ -73,13 +70,13 @@ def enrich_deadline_with_details(deadline: Deadline, db: Session = None) -> dict
         "updated_at": deadline.updated_at,
         "client": {
             "id": client.id if client else None,
-            "company_name": getattr(client, 'company_name', getattr(client, 'name', None)) if client else None,
+            "company_name": client.company_name if client else None,
             "inn": client.inn if client else None,
         } if client else None,
         "deadline_type": {
             "id": deadline_type.id if deadline_type else None,
             "name": deadline_type.type_name if deadline_type else None,
-            "type_name": deadline_type.type_name if deadline_type else None,  # Дублируем для совместимости
+            "type_name": deadline_type.type_name if deadline_type else None,
         } if deadline_type else None,
         "notification_enabled": getattr(client, 'notifications_enabled', True) if client else True,
         "days_until_expiration": calculate_days_until_expiration(deadline.expiration_date)
@@ -103,15 +100,14 @@ async def get_deadlines(
     """Получить список всех дедлайнов с фильтрами и пагинацией"""
     
     try:
-        # Базовый запрос - используем LEFT JOIN для deadline_type_id чтобы избежать ошибок
+        # Базовый запрос - LEFT JOIN по client_id (все дедлайны теперь используют client_id)
         query = db.query(Deadline)\
-            .outerjoin(User, Deadline.user_id == User.id)\
+            .outerjoin(User, Deadline.client_id == User.id)\
             .outerjoin(DeadlineType, Deadline.deadline_type_id == DeadlineType.id)
         
         # Применение фильтров
         if client_id:
-            # Поддержка обоих полей: user_id (новое) и client_id (старое)
-            query = query.filter(or_(Deadline.user_id == client_id, Deadline.client_id == client_id))
+            query = query.filter(Deadline.client_id == client_id)
         
         if deadline_type_id:
             query = query.filter(Deadline.deadline_type_id == deadline_type_id)
@@ -154,7 +150,8 @@ async def get_deadlines(
                 enriched_deadlines.append(enrich_deadline_with_details(d, db))
                 print(f"   ✓ Успешно")
             except Exception as e:
-                # Логируем ошибку но продолжаем
+                # Откатываем транзакцию при ошибке, чтобы избежать InFailedSqlTransaction
+                db.rollback()
                 import traceback
                 print(f"   ✖ ОШИБКА: Не удалось обработать дедлайн ID={d.id}")
                 print(f"   Причина: {str(e)}")

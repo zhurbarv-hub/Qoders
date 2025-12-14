@@ -12,7 +12,8 @@ import csv
 import io
 
 from ..dependencies import get_db
-from ..models.client import Client, Deadline, DeadlineType
+from ..models.user import User
+from ..models.client import Deadline, DeadlineType
 from ..services.auth_service import decode_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -42,9 +43,9 @@ def export_clients_to_json(clients: list) -> str:
         "data": [
             {
                 "id": c.id,
-                "name": c.name,
+                "name": c.company_name,
                 "inn": c.inn,
-                "contact_person": c.contact_person,
+                "contact_person": c.full_name,
                 "email": c.email,
                 "phone": c.phone,
                 "address": c.address,
@@ -73,9 +74,9 @@ def export_clients_to_csv(clients: list) -> str:
     for c in clients:
         writer.writerow([
             c.id,
-            c.name,
+            c.company_name,
             c.inn,
-            c.contact_person or '',
+            c.full_name or '',
             c.email or '',
             c.phone or '',
             c.address or '',
@@ -98,7 +99,7 @@ def export_deadlines_to_json(deadlines: list, db: Session) -> str:
             {
                 "id": d.id,
                 "client_id": d.client_id,
-                "client_name": d.client.name if d.client else None,
+                "client_name": d.client.company_name if d.client else None,
                 "client_inn": d.client.inn if d.client else None,
                 "deadline_type_id": d.deadline_type_id,
                 "deadline_type_name": d.deadline_type.type_name if d.deadline_type else None,
@@ -129,7 +130,7 @@ def export_deadlines_to_csv(deadlines: list) -> str:
     for d in deadlines:
         writer.writerow([
             d.id,
-            d.client.name if d.client else '',
+            d.client.company_name if d.client else '',
             d.client.inn if d.client else '',
             d.deadline_type.type_name if d.deadline_type else '',
             d.expiration_date.strftime('%Y-%m-%d') if d.expiration_date else '',
@@ -165,12 +166,12 @@ async def export_clients(
         )
     
     # Получение данных
-    query = db.query(Client)
+    query = db.query(User).filter(User.role == 'client')
     
     if is_active is not None:
-        query = query.filter(Client.is_active == is_active)
+        query = query.filter(User.is_active == is_active)
     
-    clients = query.order_by(Client.name).all()
+    clients = query.order_by(User.company_name).all()
     
     # Экспорт в выбранный формат
     if format == "json":
@@ -215,7 +216,7 @@ async def export_deadlines(
         )
     
     # Получение данных с JOIN
-    query = db.query(Deadline).join(Client).join(DeadlineType)
+    query = db.query(Deadline).join(User, Deadline.client_id == User.id).join(DeadlineType)
     
     if status:
         query = query.filter(Deadline.status == status)
@@ -269,8 +270,8 @@ async def export_statistics(
     stats = {}
     
     # Клиенты
-    stats['total_clients'] = db.query(Client).count()
-    stats['active_clients'] = db.query(Client).filter(Client.is_active == True).count()
+    stats['total_clients'] = db.query(User).filter(User.role == 'client').count()
+    stats['active_clients'] = db.query(User).filter(User.role == 'client', User.is_active == True).count()
     stats['inactive_clients'] = stats['total_clients'] - stats['active_clients']
     
     # Дедлайны

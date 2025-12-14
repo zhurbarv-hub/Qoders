@@ -394,12 +394,14 @@ function initNavigation() {
     // Обработчики кликов на элементы навигации
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
-            e.preventDefault();
             const section = item.dataset.section;
             if (section) {
+                // Только для элементов с data-section блокируем переход
+                e.preventDefault();
                 switchSection(section);
                 window.location.hash = section;
             }
+            // Для элементов без data-section разрешаем обычный переход по ссылке
         });
     });
     
@@ -519,21 +521,13 @@ function loadSectionData(sectionId) {
 
 // Фильтрация меню по роли пользователя
 function filterMenuByRole(role) {
-    // Пункт "Пользователи" доступен только для admin и manager
-    if (!['admin', 'manager'].includes(role)) {
-        const managersNavItem = document.querySelector('[data-section="managers"]');
-        if (managersNavItem) {
-            managersNavItem.style.display = 'none';
+    // Общая обработка всех элементов с data-role
+    document.querySelectorAll('[data-role]').forEach(item => {
+        const allowedRoles = item.dataset.role.split(',').map(r => r.trim());
+        if (!allowedRoles.includes(role)) {
+            item.style.display = 'none';
         }
-    }
-    
-    // Пункт "Экспорт" доступен только для admin и manager  
-    if (!['admin', 'manager'].includes(role)) {
-        const exportNavItem = document.querySelector('[data-section="export"]');
-        if (exportNavItem) {
-            exportNavItem.style.display = 'none';
-        }
-    }
+    });
     
     // Для клиентов показываем только их данные
     if (role === 'client') {

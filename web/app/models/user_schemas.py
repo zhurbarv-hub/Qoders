@@ -25,6 +25,9 @@ class UserBase(BaseModel):
 
 class UserCreateByAdmin(UserBase):
     """Схема для создания пользователя администратором"""
+    # Логин (обязательно при создании)
+    username: str = Field(..., min_length=3, max_length=50, pattern="^[a-zA-Z0-9_]+$", description="Логин (латинские символы, цифры, подчеркивание)")
+    
     # Для клиентов - обязательные поля
     inn: Optional[str] = Field(None, min_length=10, max_length=12, description="ИНН (только для клиентов)")
     company_name: Optional[str] = Field(None, max_length=255, description="Название компании (для клиентов)")
@@ -80,6 +83,9 @@ class UserUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     
+    # Пароль (для смены пароля администратором или самим пользователем)
+    password: Optional[str] = Field(None, min_length=6, max_length=100, description="Новый пароль")
+    
     @validator('inn')
     def validate_inn(cls, v):
         """Проверка ИНН"""
@@ -94,6 +100,7 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     """Схема ответа с данными пользователя"""
     id: int
+    username: str
     email: str
     full_name: str
     role: str

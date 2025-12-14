@@ -282,6 +282,21 @@ function createManagerModal(mode, user = {}) {
             </div>
             <div class="modal-body">
                 <form id="managerForm" onsubmit="submitManagerForm(event, '${mode}', ${user.id || 'null'})">
+                    ${isAdd ? `
+                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+                        <input class="mdl-textfield__input" type="text" id="username" required pattern="[a-zA-Z0-9_]+" minlength="3" maxlength="50">
+                        <label class="mdl-textfield__label" for="username">Логин *</label>
+                        <span class="mdl-textfield__error">Латинские буквы, цифры, подчеркивание (3-50 символов)</span>
+                    </div>
+                    ` : ''}
+                    
+                    ${isView || isEdit ? `
+                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+                        <input class="mdl-textfield__input" type="text" id="username_view" value="${user.username || ''}" disabled>
+                        <label class="mdl-textfield__label" for="username_view">Логин</label>
+                    </div>
+                    ` : ''}
+                    
                     <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
                         <input class="mdl-textfield__input" type="text" id="full_name" value="${user.full_name || ''}" ${isView ? 'disabled' : 'required'}>
                         <label class="mdl-textfield__label" for="full_name">ФИО *</label>
@@ -362,6 +377,14 @@ async function submitManagerForm(event, mode, userId) {
         role: document.getElementById('role').value,
         is_active: document.getElementById('is_active').checked
     };
+    
+    // Добавляем username только при создании
+    if (mode === 'add') {
+        const usernameField = document.getElementById('username');
+        if (usernameField && usernameField.value) {
+            formData.username = usernameField.value;
+        }
+    }
     
     // Добавляем пароль только если он указан
     const passwordField = document.getElementById('password');

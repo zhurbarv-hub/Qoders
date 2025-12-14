@@ -55,8 +55,14 @@ async function loadClientDetails() {
 function renderClientDetails() {
     if (!clientData) return;
 
-    // Заголовок
-    document.getElementById('clientName').textContent = clientData.name || 'Без названия';
+    // Заголовок с возможностью редактирования
+    const clientNameElement = document.getElementById('clientName');
+    clientNameElement.innerHTML = `
+        <i class="material-icons" style="font-size: 32px; color: white;">business</i>
+        <span id="companyNameText">${clientData.name || 'Без названия'}</span>
+        <i class="material-icons edit-company-icon" onclick="editCompanyName()" title="Редактировать название">edit</i>
+    `;
+    
     const phoneInfo = clientData.phone ? ` | Телефон: ${clientData.phone}` : '';
     document.getElementById('clientInfo').textContent = `ИНН: ${clientData.inn || '-'} | Email: ${clientData.email || '-'}${phoneInfo}`;
 
@@ -231,11 +237,11 @@ function renderCashRegisters() {
     let html = '';
     registers.forEach(reg => {
         // Находим название ОФД провайдера по ID
-        console.log('Обработка кассы:', reg.register_name, 'OFD ID:', reg.ofd_provider_id, 'Тип:', typeof reg.ofd_provider_id);
+        console.log('Обработка кассы:', reg.model, 'OFD ID:', reg.ofd_provider_id, 'Тип:', typeof reg.ofd_provider_id);
         const ofdProvider = reg.ofd_provider_id 
             ? ofdProviders.find(p => p.id === reg.ofd_provider_id)
             : null;
-        const ofdName = ofdProvider ? ofdProvider.provider_name : '-';
+        const ofdName = ofdProvider ? ofdProvider.name : '-';  // Используем 'name' вместо 'provider_name'
         console.log('ОФД провайдер найден:', ofdProvider, 'Название:', ofdName);
         
         html += `
@@ -243,7 +249,7 @@ function renderCashRegisters() {
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
                     <h4 style="margin: 0;">
                         <i class="material-icons" style="vertical-align: middle;">point_of_sale</i>
-                        ${reg.register_name}
+                        ${reg.model || 'Касса'}
                     </h4>
                     <div>
                         <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteRegister(${reg.id})" title="Удалить">
@@ -252,18 +258,16 @@ function renderCashRegisters() {
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 10px; font-size: 14px;">
-                    <div style="font-weight: bold;">Серийный номер:</div>
-                    <div>${reg.serial_number}</div>
+                    <div style="font-weight: bold;">Заводской номер:</div>
+                    <div>${reg.factory_number || '-'}</div>
                     <div style="font-weight: bold;">Номер ФН:</div>
-                    <div>${reg.fiscal_drive_number}</div>
-                    <div style="font-weight: bold;">Адрес установки:</div>
-                    <div>${reg.installation_address || '-'}</div>
+                    <div>${reg.fn_number || '-'}</div>
                     <div style="font-weight: bold;">Наименование ОФД:</div>
                     <div>${ofdName}</div>
-                    <div style="font-weight: bold;">Дата замены ФН:</div>
-                    <div>${reg.fn_replacement_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.fn_replacement_date)}</span>` : '-'}</div>
-                    <div style="font-weight: bold;">Дата продления ОФД:</div>
-                    <div>${reg.ofd_renewal_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.ofd_renewal_date)}</span>` : '-'}</div>
+                    <div style="font-weight: bold;">Дата окончания ФН:</div>
+                    <div>${reg.fn_expiry_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.fn_expiry_date)}</span>` : '-'}</div>
+                    <div style="font-weight: bold;">Дата окончания ОФД:</div>
+                    <div>${reg.ofd_expiry_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.ofd_expiry_date)}</span>` : '-'}</div>
                     <div style="font-weight: bold;">Примечание:</div>
                     <div>${reg.notes || '-'}</div>
                     <div style="font-weight: bold;">Статус:</div>
@@ -437,10 +441,16 @@ function renderGeneralDeadlines() {
 function makeFieldEditable(fieldElement) {
     const fieldName = fieldElement.getAttribute('data-field');
     const currentValue = clientData[fieldName] || '';
-    const displayValue = fieldElement.textContent;
+    
+    // Находим контейнер со значением
+    const valueContainer = fieldElement.querySelector('.client-info-value');
+    if (!valueContainer) {
+        console.error('Не найден контейнер .client-info-value');
+        return;
+    }
     
     // Если это уже input, ничего не делаем
-    if (fieldElement.querySelector('input') || fieldElement.querySelector('textarea')) {
+    if (valueContainer.querySelector('input') || valueContainer.querySelector('textarea')) {
         return;
     }
     
@@ -450,28 +460,30 @@ function makeFieldEditable(fieldElement) {
         inputElement = document.createElement('textarea');
         inputElement.rows = 3;
         inputElement.style.width = '100%';
-        inputElement.style.padding = '4px';
-        inputElement.style.border = '1px solid #3f51b5';
-        inputElement.style.borderRadius = '2px';
+        inputElement.style.padding = '8px';
+        inputElement.style.border = '2px solid #667eea';
+        inputElement.style.borderRadius = '4px';
         inputElement.style.fontFamily = 'inherit';
         inputElement.style.fontSize = 'inherit';
+        inputElement.style.boxSizing = 'border-box';
     } else {
         // Для остальных полей используем input
         inputElement = document.createElement('input');
         inputElement.type = 'text';
         inputElement.style.width = '100%';
-        inputElement.style.padding = '4px';
-        inputElement.style.border = '1px solid #3f51b5';
-        inputElement.style.borderRadius = '2px';
+        inputElement.style.padding = '8px';
+        inputElement.style.border = '2px solid #667eea';
+        inputElement.style.borderRadius = '4px';
         inputElement.style.fontFamily = 'inherit';
         inputElement.style.fontSize = 'inherit';
+        inputElement.style.boxSizing = 'border-box';
     }
     
-    inputElement.value = currentValue === '-' ? '' : currentValue;
+    inputElement.value = currentValue;
     
-    // Заменяем содержимое на input
-    fieldElement.innerHTML = '';
-    fieldElement.appendChild(inputElement);
+    // Заменяем содержимое valueContainer на input
+    valueContainer.innerHTML = '';
+    valueContainer.appendChild(inputElement);
     inputElement.focus();
     inputElement.select();
     
@@ -487,14 +499,25 @@ function makeFieldEditable(fieldElement) {
             if (e.key === 'Enter') {
                 inputElement.blur();
             } else if (e.key === 'Escape') {
-                fieldElement.textContent = displayValue;
+                // Отмена редактирования - восстанавливаем старое значение
+                const oldValue = clientData[fieldName];
+                let displayValue;
+                if (fieldName === 'phone' && oldValue) {
+                    displayValue = `<a href="tel:${oldValue}">${oldValue}</a>`;
+                } else if (fieldName === 'email' && oldValue) {
+                    displayValue = `<a href="mailto:${oldValue}">${oldValue}</a>`;
+                } else {
+                    displayValue = oldValue || (fieldName === 'notes' ? 'Нет примечаний' : 'Не указано');
+                }
+                valueContainer.innerHTML = displayValue;
             }
         });
     } else {
         // Для textarea только Escape
         inputElement.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
-                fieldElement.textContent = displayValue;
+                const oldValue = clientData[fieldName];
+                valueContainer.innerHTML = oldValue || (fieldName === 'notes' ? 'Нет примечаний' : 'Не указано');
             }
         });
     }
@@ -524,8 +547,28 @@ async function saveClientField(fieldName, newValue, fieldElement) {
         // Обновляем локальные данные
         clientData[fieldName] = newValue || null;
         
-        // Восстанавливаем отображение
-        fieldElement.textContent = newValue || '-';
+        // Восстанавливаем отображение с правильной HTML-структурой
+        const valueContainer = fieldElement.querySelector('.client-info-value');
+        if (valueContainer) {
+            // Определяем правильное отображение в зависимости от поля
+            let displayValue;
+            if (fieldName === 'phone' && newValue) {
+                displayValue = `<a href="tel:${newValue}">${newValue}</a>`;
+            } else if (fieldName === 'email' && newValue) {
+                displayValue = `<a href="mailto:${newValue}">${newValue}</a>`;
+            } else {
+                displayValue = newValue || (fieldName === 'notes' ? 'Нет примечаний' : 'Не указано');
+            }
+            
+            valueContainer.innerHTML = displayValue;
+            
+            // Обновляем класс empty при необходимости
+            if (!newValue) {
+                valueContainer.classList.add('empty');
+            } else {
+                valueContainer.classList.remove('empty');
+            }
+        }
         fieldElement.style.cursor = 'pointer';
         
         // Обновляем заголовок если изменился телефон
@@ -539,8 +582,25 @@ async function saveClientField(fieldName, newValue, fieldElement) {
     } catch (error) {
         console.error('Ошибка сохранения поля:', error);
         alert(`Ошибка: ${error.message}`);
-        // Возвращаем старое значение
-        fieldElement.textContent = clientData[fieldName] || '-';
+        // Возвращаем старое значение с правильной HTML-структурой
+        const valueContainer = fieldElement.querySelector('.client-info-value');
+        if (valueContainer) {
+            const oldValue = clientData[fieldName];
+            let displayValue;
+            if (fieldName === 'phone' && oldValue) {
+                displayValue = `<a href="tel:${oldValue}">${oldValue}</a>`;
+            } else if (fieldName === 'email' && oldValue) {
+                displayValue = `<a href="mailto:${oldValue}">${oldValue}</a>`;
+            } else {
+                displayValue = oldValue || (fieldName === 'notes' ? 'Нет примечаний' : 'Не указано');
+            }
+            valueContainer.innerHTML = displayValue;
+            if (!oldValue) {
+                valueContainer.classList.add('empty');
+            } else {
+                valueContainer.classList.remove('empty');
+            }
+        }
         fieldElement.style.cursor = 'pointer';
     }
 }
@@ -683,7 +743,7 @@ function showAddRegisterDialog() {
     ofdProviders.forEach(provider => {
         const option = document.createElement('option');
         option.value = provider.id;
-        option.textContent = provider.provider_name;
+        option.textContent = provider.name;  // Используем поле 'name' вместо 'provider_name'
         ofdSelect.appendChild(option);
     });
     
@@ -700,13 +760,14 @@ function editRegister(registerId) {
 
     document.getElementById('registerDialogTitle').textContent = 'Редактировать кассовый аппарат';
     document.getElementById('registerId').value = register.id;
-    document.getElementById('registerName').value = register.register_name;
-    document.getElementById('serialNumber').value = register.serial_number;
-    document.getElementById('fiscalDriveNumber').value = register.fiscal_drive_number;
-    document.getElementById('installationAddress').value = register.installation_address || '';
+    document.getElementById('registerName').value = register.register_name || '';  // Название кассы
+    document.getElementById('registerModel').value = register.model || '';  // Модель ККТ
+    document.getElementById('serialNumber').value = register.factory_number || '';  // factory_number вместо serial_number
+    document.getElementById('fiscalDriveNumber').value = register.fn_number || '';  // fn_number вместо fiscal_drive_number
+    document.getElementById('installationAddress').value = '';  // Это поле больше не используется
     document.getElementById('registerNotes').value = register.notes || '';
-    document.getElementById('fnReplacementDate').value = register.fn_replacement_date || '';
-    document.getElementById('ofdRenewalDate').value = register.ofd_renewal_date || '';
+    document.getElementById('fnReplacementDate').value = register.fn_expiry_date || '';  // fn_expiry_date вместо fn_replacement_date
+    document.getElementById('ofdRenewalDate').value = register.ofd_expiry_date || '';  // ofd_expiry_date вместо ofd_renewal_date
     
     // Заполняем список ОФД провайдеров и устанавливаем выбранный
     const ofdSelect = document.getElementById('ofdProvider');
@@ -714,7 +775,7 @@ function editRegister(registerId) {
     ofdProviders.forEach(provider => {
         const option = document.createElement('option');
         option.value = provider.id;
-        option.textContent = provider.provider_name;
+        option.textContent = provider.name;  // Используем поле 'name' вместо 'provider_name'
         if (register.ofd_provider_id && provider.id === register.ofd_provider_id) {
             option.selected = true;
         }
@@ -733,6 +794,7 @@ function editRegister(registerId) {
 async function saveRegister() {
     const registerId = document.getElementById('registerId').value;
     const registerName = document.getElementById('registerName').value.trim();
+    const registerModel = document.getElementById('registerModel').value.trim();
     const serialNumber = document.getElementById('serialNumber').value.trim();
     const fiscalDriveNumber = document.getElementById('fiscalDriveNumber').value.trim();
     const installationAddress = document.getElementById('installationAddress').value.trim();
@@ -741,21 +803,21 @@ async function saveRegister() {
     const fnReplacementDate = document.getElementById('fnReplacementDate').value || null;
     const ofdRenewalDate = document.getElementById('ofdRenewalDate').value || null;
 
-    if (!registerName || !serialNumber || !fiscalDriveNumber) {
+    if (!registerName || !registerModel || !serialNumber || !fiscalDriveNumber) {
         alert('Заполните все обязательные поля');
         return;
     }
 
     const data = {
-        user_id: clientData.id,  // Используем ID из загруженных данных клиента
-        register_name: registerName,
-        serial_number: serialNumber,
-        fiscal_drive_number: fiscalDriveNumber,
-        installation_address: installationAddress || '',
-        ofd_provider_id: ofdProviderId ? parseInt(ofdProviderId) : null,  // Отправляем ID провайдера
+        client_id: clientData.id,  // Используем client_id вместо user_id
+        register_name: registerName,  // Название кассы
+        model: registerModel,  // Модель ККТ
+        factory_number: serialNumber,  // Заводской номер (вместо serial_number)
+        fn_number: fiscalDriveNumber,  // Номер ФН (вместо fiscal_drive_number)
+        ofd_provider_id: ofdProviderId ? parseInt(ofdProviderId) : null,
         notes: registerNotes || '',
-        fn_replacement_date: fnReplacementDate,
-        ofd_renewal_date: ofdRenewalDate
+        fn_expiry_date: fnReplacementDate,  // Дата окончания ФН (вместо fn_replacement_date)
+        ofd_expiry_date: ofdRenewalDate  // Дата окончания договора ОФД (вместо ofd_renewal_date)
     };
 
     console.log('Текущий clientData:', clientData);
@@ -903,72 +965,20 @@ async function loadDeadlineTypes() {
 
 // Открыть диалог добавления дедлайна
 function showAddDeadlineDialog() {
-    document.getElementById('deadlineDialogTitle').textContent = 'Добавить дедлайн';
-    document.getElementById('deadlineForm').reset();
-    document.getElementById('deadlineId').value = '';
-    document.getElementById('deadlineNotifyDays').value = '7';
-    document.getElementById('deadlineNotificationEnabled').checked = true;
-    
-    // Заполняем выбор типов дедлайнов
-    const typeSelect = document.getElementById('deadlineType');
-    typeSelect.innerHTML = '<option value="">Выберите тип</option>';
-    deadlineTypes.forEach(type => {
-        const option = document.createElement('option');
-        option.value = type.id;
-        option.textContent = type.type_name;
-        typeSelect.appendChild(option);
-    });
-    
-    // Заполняем выбор кассовых аппаратов
-    const registerSelect = document.getElementById('deadlineCashRegister');
-    registerSelect.innerHTML = '<option value="">Общий дедлайн (не привязан к кассе)</option>';
-    if (clientData.cash_registers) {
-        clientData.cash_registers.forEach(reg => {
-            if (reg.is_active) {
-                const option = document.createElement('option');
-                option.value = reg.id;
-                option.textContent = reg.register_name;
-                registerSelect.appendChild(option);
-            }
-        });
-    }
-    
-    deadlineDialog.showModal();
+    const modal = createDeadlineModal('add');
+    document.body.appendChild(modal);
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
 }
 
 // Открыть диалог добавления дедлайна по кассам (с предвыбранной кассой)
 function showAddRegisterDeadlineDialog() {
-    document.getElementById('deadlineDialogTitle').textContent = 'Добавить дедлайн по кассам';
-    document.getElementById('deadlineForm').reset();
-    document.getElementById('deadlineId').value = '';
-    document.getElementById('deadlineNotifyDays').value = '7';
-    document.getElementById('deadlineNotificationEnabled').checked = true;
-    
-    // Заполняем выбор типов дедлайнов
-    const typeSelect = document.getElementById('deadlineType');
-    typeSelect.innerHTML = '<option value="">Выберите тип</option>';
-    deadlineTypes.forEach(type => {
-        const option = document.createElement('option');
-        option.value = type.id;
-        option.textContent = type.type_name;
-        typeSelect.appendChild(option);
-    });
-    
-    // Заполняем выбор кассовых аппаратов (обязательно выбрать кассу)
-    const registerSelect = document.getElementById('deadlineCashRegister');
-    registerSelect.innerHTML = '<option value="">Выберите кассу *</option>';
-    if (clientData.cash_registers) {
-        clientData.cash_registers.forEach(reg => {
-            if (reg.is_active) {
-                const option = document.createElement('option');
-                option.value = reg.id;
-                option.textContent = reg.register_name;
-                registerSelect.appendChild(option);
-            }
-        });
-    }
-    
-    deadlineDialog.showModal();
+    const modal = createDeadlineModal('add');
+    document.body.appendChild(modal);
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
 }
 
 // Редактировать дедлайн
@@ -987,113 +997,269 @@ function editDeadline(deadlineId, deadlineType) {
         return;
     }
     
-    document.getElementById('deadlineDialogTitle').textContent = 'Редактировать дедлайн';
-    document.getElementById('deadlineId').value = deadlineId;
+    // Преобразуем данные дедлайна в формат, аналогичный API
+    const deadlineData = {
+        id: deadlineId,
+        deadline_type_id: deadline.deadline_type_id,
+        cash_register_id: deadline.cash_register_id || null,
+        expiration_date: deadline.expiration_date,
+        notify_days_before: deadline.notify_days_before || 7,
+        notification_enabled: deadline.notification_enabled !== false,
+        notes: deadline.notes || ''
+    };
     
-    // Заполняем выбор типов дедлайнов
-    const typeSelect = document.getElementById('deadlineType');
-    typeSelect.innerHTML = '<option value="">Выберите тип</option>';
+    const modal = createDeadlineModal('edit', deadlineData);
+    document.body.appendChild(modal);
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+}
+
+// Создание модального окна для дедлайна
+function createDeadlineModal(mode, deadline = {}) {
+    const isEdit = mode === 'edit';
+    const title = isEdit ? 'Редактирование дедлайна' : 'Добавить дедлайн';
+    
+    const modalDiv = document.createElement('div');
+    modalDiv.className = 'modal-overlay';
+    modalDiv.innerHTML = `
+        <div class="modal" style="width: 600px; max-width: 90vw; border-radius: 12px; padding: 0; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                <h3 style="margin: 0; font-size: 20px; font-weight: 500;">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 8px; font-size: 24px;">event</i>
+                    ${title}
+                </h3>
+            </div>
+            <div class="modal-body" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
+                <form id="deadlineForm" onsubmit="submitDeadlineForm(event, '${mode}', ${deadline.id || 'null'})">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">category</i>
+                            Тип услуги *
+                        </label>
+                        <select id="deadline_type_id" required 
+                                style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="">Выберите тип услуги</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">computer</i>
+                            Кассовый аппарат
+                        </label>
+                        <select id="cash_register_id" 
+                                style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;" 
+                                onchange="updateCashRegisterModelField()"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="">Общий дедлайн (не привязан к кассе)</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">devices</i>
+                            Модель ККТ
+                        </label>
+                        <input type="text" id="cash_register_model" maxlength="100" 
+                               value="${deadline.cash_register_model || ''}" 
+                               style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                               placeholder="Автоматически заполняется при выборе кассы"
+                               onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                               onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        <small style="display: block; margin-top: 4px; font-size: 12px; color: #666;">Можно указать вручную для общих дедлайнов</small>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">event</i>
+                                Дата истечения *
+                            </label>
+                            <input type="date" id="expiration_date" required 
+                                   value="${deadline.expiration_date || ''}" 
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">notifications</i>
+                                Уведомлять за (дней) *
+                            </label>
+                            <input type="number" id="notify_days_before" min="1" required 
+                                   value="${deadline.notify_days_before || 7}" 
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; padding: 12px; background: #f0f8ff; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-size: 14px; font-weight: 500; color: #555;">
+                            <input type="checkbox" id="notification_enabled" ${deadline.notification_enabled !== false ? 'checked' : ''} 
+                                   style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                            <i class="material-icons" style="font-size: 18px; vertical-align: middle; margin-right: 6px; color: #667eea;">notifications_active</i>
+                            Включить уведомления
+                        </label>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">notes</i>
+                            Заметки
+                        </label>
+                        <textarea id="notes" rows="3" 
+                                  style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit; transition: all 0.3s; box-sizing: border-box;"
+                                  onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                  onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">${deadline.notes || ''}</textarea>
+                    </div>
+                    
+                    <div style="padding: 16px 24px; background: #f8f9fa; border-radius: 0 0 12px 12px; display: flex; gap: 12px; justify-content: flex-end; margin: 0 -24px -24px -24px;">
+                        <button type="button" onclick="closeDeadlineModal(this)" 
+                                style="padding: 10px 24px; border: 2px solid #e0e0e0; background: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;"
+                                onmouseover="this.style.background='#f5f5f5'"
+                                onmouseout="this.style.background='white'">
+                            <i class="material-icons" style="font-size: 18px;">close</i>
+                            Отмена
+                        </button>
+                        <button type="submit" 
+                                style="padding: 10px 24px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 8px rgba(102,126,234,0.3); transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)'"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(102,126,234,0.3)'">
+                            <i class="material-icons" style="font-size: 18px;">save</i>
+                            ${isEdit ? 'Сохранить' : 'Создать'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Загружаем списки типов и касс
+    setTimeout(() => {
+        loadDeadlineTypesForModal(deadline.deadline_type_id);
+        loadCashRegistersForModal(deadline.cash_register_id);
+    }, 50);
+    
+    return modalDiv;
+}
+
+// Загрузить типы дедлайнов для модального окна
+function loadDeadlineTypesForModal(selectedId) {
+    const select = document.getElementById('deadline_type_id');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Выберите тип услуги</option>';
     deadlineTypes.forEach(type => {
         const option = document.createElement('option');
         option.value = type.id;
         option.textContent = type.type_name;
-        if (type.type_name === deadline.deadline_type_name) {
+        if (selectedId && type.id === selectedId) {
             option.selected = true;
         }
-        typeSelect.appendChild(option);
+        select.appendChild(option);
     });
+}
+
+// Загрузить кассовые аппараты для модального окна
+function loadCashRegistersForModal(selectedId) {
+    const select = document.getElementById('cash_register_id');
+    if (!select) return;
     
-    // Заполняем выбор кассовых аппаратов
-    const registerSelect = document.getElementById('deadlineCashRegister');
-    registerSelect.innerHTML = '<option value="">Общий дедлайн (не привязан к кассе)</option>';
+    select.innerHTML = '<option value="">Общий дедлайн (не привязан к кассе)</option>';
     if (clientData.cash_registers) {
         clientData.cash_registers.forEach(reg => {
             if (reg.is_active) {
                 const option = document.createElement('option');
                 option.value = reg.id;
-                option.textContent = reg.register_name;
-                if (deadline.cash_register_id && reg.id === deadline.cash_register_id) {
+                option.textContent = reg.register_name || `Касса #${reg.id}`;
+                option.setAttribute('data-model', reg.model || '');  // Сохраняем модель в data-атрибуте
+                if (selectedId && reg.id === selectedId) {
                     option.selected = true;
                 }
-                registerSelect.appendChild(option);
+                select.appendChild(option);
             }
         });
     }
-    
-    // Заполняем дату и примечания
-    document.getElementById('deadlineExpiration').value = deadline.expiration_date;
-    document.getElementById('deadlineNotifyDays').value = deadline.notify_days_before || 7;
-    document.getElementById('deadlineNotificationEnabled').checked = deadline.notification_enabled !== false;
-    document.getElementById('deadlineNotes').value = deadline.notes || '';
-    
-    // Обновляем MDL textfield
-    document.querySelectorAll('#deadlineForm .mdl-textfield').forEach(field => {
-        if (field.MaterialTextfield) {
-            field.MaterialTextfield.checkDirty();
-        }
-    });
-    
-    deadlineDialog.showModal();
 }
 
-// Сохранить дедлайн
-async function saveDeadline() {
-    const deadlineId = document.getElementById('deadlineId').value;
-    const deadlineTypeId = document.getElementById('deadlineType').value;
-    const cashRegisterId = document.getElementById('deadlineCashRegister').value;
-    const expirationDate = document.getElementById('deadlineExpiration').value;
-    const notifyDays = document.getElementById('deadlineNotifyDays').value;
-    const notificationEnabled = document.getElementById('deadlineNotificationEnabled').checked;
-    const notes = document.getElementById('deadlineNotes').value.trim();
-
-    if (!deadlineTypeId || !expirationDate || !notifyDays) {
-        alert('Заполните все обязательные поля');
-        return;
+// Обновить поле модели ККТ при выборе кассы
+function updateCashRegisterModelField() {
+    const cashRegisterSelect = document.getElementById('cash_register_id');
+    const modelInput = document.getElementById('cash_register_model');
+    
+    if (!cashRegisterSelect || !modelInput) return;
+    
+    const selectedOption = cashRegisterSelect.options[cashRegisterSelect.selectedIndex];
+    const model = selectedOption.getAttribute('data-model') || '';
+    
+    if (cashRegisterSelect.value) {
+        // Если выбрана касса, автоматически заполняем модель
+        modelInput.value = model;
     }
+    // Если не выбрана (общий дедлайн), поле остается для ручного ввода
+}
 
-    const data = {
-        client_id: clientData.id,  // Используем ID из загруженных данных клиента
-        deadline_type_id: parseInt(deadlineTypeId),
-        cash_register_id: cashRegisterId ? parseInt(cashRegisterId) : null,
-        expiration_date: expirationDate,
-        notify_days_before: parseInt(notifyDays),
-        notification_enabled: notificationEnabled,
-        notes: notes || '',  // Пустая строка вместо null
+// Закрыть модальное окно дедлайна
+function closeDeadlineModal(element) {
+    const modal = element.closest('.modal-overlay');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+// Отправка формы дедлайна
+async function submitDeadlineForm(event, mode, deadlineId) {
+    event.preventDefault();
+    
+    const formData = {
+        client_id: clientData.id,
+        deadline_type_id: parseInt(document.getElementById('deadline_type_id').value),
+        cash_register_id: document.getElementById('cash_register_id').value ? parseInt(document.getElementById('cash_register_id').value) : null,
+        cash_register_model: document.getElementById('cash_register_model').value.trim() || null,  // Модель ККТ
+        expiration_date: document.getElementById('expiration_date').value,
+        notify_days_before: parseInt(document.getElementById('notify_days_before').value),
+        notification_enabled: document.getElementById('notification_enabled').checked,
+        notes: document.getElementById('notes').value || '',
         status: 'active'
     };
-
+    
+    console.log('Отправка формы дедлайна:', mode, formData);
+    
+    const token = getToken();
+    const url = mode === 'edit' ? `${API_BASE}/deadlines/${deadlineId}` : `${API_BASE}/deadlines`;
+    const method = mode === 'edit' ? 'PUT' : 'POST';
+    
     try {
-        let response;
-        if (deadlineId) {
-            // Редактирование
-            response = await fetch(`${API_BASE}/deadlines/${deadlineId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${getToken()}`
-                },
-                body: JSON.stringify(data)
-            });
-        } else {
-            // Создание
-            response = await fetch(`${API_BASE}/deadlines`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${getToken()}`
-                },
-                body: JSON.stringify(data)
-            });
-        }
-
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Ошибка сохранения');
         }
-
-        deadlineDialog.close();
+        
+        // Закрыть модальное окно
+        const modal = document.querySelector('.modal-overlay');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+        
+        // Перезагрузить данные клиента
         await loadClientDetails();
-        alert(deadlineId ? 'Дедлайн успешно обновлен' : 'Дедлайн успешно добавлен');
+        alert(mode === 'edit' ? 'Дедлайн успешно обновлен' : 'Дедлайн успешно добавлен');
     } catch (error) {
         console.error('Ошибка сохранения дедлайна:', error);
         alert(`Ошибка: ${error.message}`);
@@ -1217,7 +1383,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Инициализация диалогов
     registerDialog = document.getElementById('registerDialog');
-    deadlineDialog = document.getElementById('deadlineDialog');
 
     // Кнопки добавления
     document.getElementById('addRegisterBtn').addEventListener('click', showAddRegisterDialog);
@@ -1226,14 +1391,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Кнопки сохранения в диалогах
     document.getElementById('saveRegisterBtn').addEventListener('click', saveRegister);
-    document.getElementById('saveDeadlineBtn').addEventListener('click', saveDeadline);
 
     // Кнопки закрытия диалогов
     document.getElementById('closeRegisterDialog').addEventListener('click', function() {
         registerDialog.close();
-    });
-    document.getElementById('closeDeadlineDialog').addEventListener('click', function() {
-        deadlineDialog.close();
     });
     
     // Кнопка отправки в Telegram
@@ -1250,3 +1411,91 @@ document.addEventListener('DOMContentLoaded', function() {
         loadClientDetails();
     });
 });
+
+// ========== РЕДАКТИРОВАНИЕ НАЗВАНИЯ КОМПАНИИ ==========
+
+// Редактировать название компании
+function editCompanyName() {
+    const companyNameText = document.getElementById('companyNameText');
+    const currentName = clientData.name || '';
+    
+    // Создаём input для редактирования
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentName;
+    input.className = 'company-name-input';
+    input.style.maxWidth = '600px';
+    
+    // Заменяем текст на input
+    companyNameText.replaceWith(input);
+    input.focus();
+    input.select();
+    
+    // Обработчик потери фокуса
+    input.addEventListener('blur', async function() {
+        const newName = input.value.trim();
+        await saveCompanyName(newName, input);
+    });
+    
+    // Обработчик Enter
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            input.blur();
+        } else if (e.key === 'Escape') {
+            // Отмена - восстанавливаем старое значение
+            const span = document.createElement('span');
+            span.id = 'companyNameText';
+            span.textContent = currentName || 'Без названия';
+            input.replaceWith(span);
+        }
+    });
+}
+
+// Сохранить новое название компании
+async function saveCompanyName(newName, inputElement) {
+    if (!newName) {
+        alert('Название компании не может быть пустым');
+        // Возвращаем старое значение
+        const span = document.createElement('span');
+        span.id = 'companyNameText';
+        span.textContent = clientData.name || 'Без названия';
+        inputElement.replaceWith(span);
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/users/${currentUserId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify({ name: newName })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Ошибка сохранения');
+        }
+        
+        // Обновляем локальные данные
+        clientData.name = newName;
+        
+        // Восстанавливаем отображение
+        const span = document.createElement('span');
+        span.id = 'companyNameText';
+        span.textContent = newName;
+        inputElement.replaceWith(span);
+        
+        showNotification('Название компании успешно обновлено');
+    } catch (error) {
+        console.error('Ошибка сохранения названия:', error);
+        alert(`Ошибка: ${error.message}`);
+        
+        // Возвращаем старое значение
+        const span = document.createElement('span');
+        span.id = 'companyNameText';
+        span.textContent = clientData.name || 'Без названия';
+        inputElement.replaceWith(span);
+    }
+}
