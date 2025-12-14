@@ -93,7 +93,7 @@ async def get_deadlines(
     client_id: Optional[int] = Query(None, description="Фильтр по клиенту"),
     deadline_type_id: Optional[int] = Query(None, description="Фильтр по типу дедлайна"),
     cash_register_id: Optional[int] = Query(None, description="Фильтр по кассовому аппарату"),
-    status: Optional[str] = Query(None, description="Фильтр по статусу"),
+    deadline_status: Optional[str] = Query(None, description="Фильтр по статусу"),
     date_from: Optional[date] = Query(None, description="Дата от"),
     date_to: Optional[date] = Query(None, description="Дата до"),
     days_until: Optional[int] = Query(None, description="Истекает через N дней"),
@@ -119,8 +119,8 @@ async def get_deadlines(
         if cash_register_id:
             query = query.filter(Deadline.cash_register_id == cash_register_id)
         
-        if status:
-            query = query.filter(Deadline.status == status)
+        if deadline_status:
+            query = query.filter(Deadline.status == deadline_status)
         
         if date_from:
             query = query.filter(Deadline.expiration_date >= date_from)
