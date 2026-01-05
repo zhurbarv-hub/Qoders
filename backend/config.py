@@ -64,6 +64,11 @@ class Settings(BaseSettings):
         description="Telegram ID менеджеров (через запятую)"
     )
     
+    admin_group_chat_id: str = Field(
+        default="",
+        description="Chat ID группы администраторов для уведомлений о обращениях клиентов"
+    )
+    
     # ============================================
     # Notification Settings
     # ============================================

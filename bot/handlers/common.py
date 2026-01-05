@@ -10,6 +10,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from bot.services.formatter import format_welcome_message, format_help_message
 from bot.handlers.registration import start_registration, check_user_registered
+from bot.handlers.client_buttons import get_client_keyboard
 import logging
 
 logger = logging.getLogger(__name__)
@@ -50,8 +51,10 @@ async def cmd_start(message: Message, user_role: str = 'unknown', state: FSMCont
 • /week - Дедлайны на неделю  
 • /next <дни> - Дедлайны на N дней
 • /help - Справка по командам
+
+💡 <b>Используйте кнопки меню для быстрого доступа</b>
 """
-                await message.answer(welcome_text, parse_mode='HTML')
+                await message.answer(welcome_text, parse_mode='HTML', reply_markup=get_client_keyboard())
             else:
                 # Пользователь не зарегистрирован, запускаем процесс регистрации
                 await start_registration(message, state)
@@ -61,7 +64,12 @@ async def cmd_start(message: Message, user_role: str = 'unknown', state: FSMCont
         
         # Для зарегистрированных пользователей (admin, manager, client) показываем приветствие
         welcome_text = format_welcome_message(user_role)
-        await message.answer(welcome_text, parse_mode="HTML")
+        
+        # Добавляем клавиатуру для клиентов
+        if user_role == 'client':
+            await message.answer(welcome_text, parse_mode="HTML", reply_markup=get_client_keyboard())
+        else:
+            await message.answer(welcome_text, parse_mode="HTML")
         
         logger.info(f"Пользователь {telegram_id} (роль: {user_role}) получил приветствие")
         
@@ -115,9 +123,14 @@ async def cmd_help(message: Message, user_role: str = 'unknown', **kwargs):
     help_text += "<i>🔔 Бот автоматически отправляет уведомления о приближающихся дедлайнах</i>\n"
     
     if user_role == 'client':
-        help_text += "<i>💡 Для управления дедлайнами используйте веб-консоль</i>"
+        help_text += "<i>💡 Для управления дедлайнами используйте веб-консоль</i>\n"
+        help_text += "<i>📋 Используйте кнопки меню ниже для быстрого доступа</i>"
     
-    await message.answer(help_text, parse_mode='HTML')
+    # Добавляем клавиатуру для клиентов
+    if user_role == 'client':
+        await message.answer(help_text, parse_mode='HTML', reply_markup=get_client_keyboard())
+    else:
+        await message.answer(help_text, parse_mode='HTML')
 
 
 # Экспортируем роутер для использования в основном приложении

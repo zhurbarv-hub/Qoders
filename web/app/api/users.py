@@ -29,6 +29,7 @@ from ..models.user_schemas import (
 from ..models.schemas import MessageResponse
 from ..services.auth_service import get_password_hash, decode_token, create_access_token
 from ..services.email_service import EmailService
+from ..services.env_manager import env_manager
 from ..config import settings
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -203,6 +204,15 @@ async def create_user(
                 detail=f"Пользователь с ИНН {user_data.inn} уже существует"
             )
     
+    # Проверка уникальности Telegram ID
+    if user_data.telegram_id:
+        existing_telegram = db.query(User).filter(User.telegram_id == user_data.telegram_id).first()
+        if existing_telegram:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Telegram ID {user_data.telegram_id} уже используется пользователем '{existing_telegram.full_name}' ({existing_telegram.username})"
+            )
+    
     # Подготовка данных для создания
     user_dict = user_data.model_dump(exclude={'password', 'send_invitation'})
     
@@ -239,6 +249,20 @@ async def create_user(
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    
+    # Если создаём администратора или менеджера с Telegram ID - добавляем в .env
+    if user_data.role in ['admin', 'manager'] and user_data.telegram_id:
+        try:
+            success = env_manager.add_admin_telegram_id(user_data.telegram_id)
+            if success:
+                # Перезапускаем бота для применения изменений
+                env_manager.restart_bot_service()
+                print(f"✅ Telegram ID {user_data.telegram_id} добавлен в .env для пользователя {new_user.full_name}")
+            else:
+                print(f"⚠️  Не удалось добавить Telegram ID {user_data.telegram_id} в .env")
+        except Exception as e:
+            print(f"❌ Ошибка при добавлении Telegram ID в .env: {e}")
+            # Не прерываем создание пользователя из-за ошибки .env
     
     # Отправка email-приглашения если не установлен пароль
     email_sent = False
@@ -325,6 +349,18 @@ async def update_user(
                 detail=f"Пользователь с ИНН {update_data['inn']} уже существует"
             )
     
+    # Проверка уникальности Telegram ID при изменении
+    if 'telegram_id' in update_data and update_data['telegram_id'] and update_data['telegram_id'] != user.telegram_id:
+        existing = db.query(User).filter(
+            User.telegram_id == update_data['telegram_id'],
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Telegram ID {update_data['telegram_id']} уже используется пользователем '{existing.full_name}' ({existing.username})"
+            )
+    
     # Применение изменений
     for field, value in update_data.items():
         setattr(user, field, value)
@@ -365,6 +401,19 @@ async def toggle_user_status(
     
     # Переключение статуса
     user.is_active = not user.is_active
+    
+    # Если деактивируем - ФИЗИЧЕСКИ УДАЛЯЕМ все дедлайны
+    if not user.is_active:
+        deadlines_to_delete = db.query(Deadline).filter(
+            Deadline.client_id == user_id
+        ).all()
+        
+        deleted_count = len(deadlines_to_delete)
+        for deadline in deadlines_to_delete:
+            db.delete(deadline)
+        
+        print(f"[ДЕАКТИВАЦИЯ КЛИЕНТА] Клиент ID={user_id}: физически удалено {deleted_count} дедлайнов")
+    
     db.commit()
     
     status_text = "активирован" if user.is_active else "деактивирован"
@@ -380,7 +429,8 @@ async def delete_user(
     current_user: dict = Depends(check_admin_role)
 ):
     """
-    Деактивировать пользователя (только для администратора)
+    Физически удалить пользователя (только для администратора)
+    При удалении администратора/менеджера - удаляет Telegram ID из .env
     """
     user = db.query(User).filter(User.id == user_id).first()
     
@@ -390,19 +440,61 @@ async def delete_user(
             detail=f"Пользователь с ID {user_id} не найден"
         )
     
-    # Запрет на деактивацию самого себя
+    # Запрет на удаление самого себя
     if user.id == int(current_user.get('sub', 0)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нельзя деактивировать свою учётную запись"
+            detail="Нельзя удалить свою учётную запись"
         )
     
-    # Мягкое удаление - деактивация
-    user.is_active = False
+    # Сохраняем данные для логирования
+    user_full_name = user.full_name
+    user_telegram_id = user.telegram_id
+    user_role = user.role
+    
+    # ФИЗИЧЕСКОЕ УДАЛЕНИЕ связанных данных
+    
+    # 1. Удаляем все дедлайны (если клиент)
+    if user.role == 'client':
+        deadlines_to_delete = db.query(Deadline).filter(
+            Deadline.client_id == user_id
+        ).all()
+        deleted_deadlines_count = len(deadlines_to_delete)
+        for deadline in deadlines_to_delete:
+            db.delete(deadline)
+        print(f"[УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ] Пользователь ID={user_id}: физически удалено {deleted_deadlines_count} дедлайнов")
+    
+    # 2. Удаляем все кассы (если клиент)
+    if user.role == 'client':
+        cash_registers_to_delete = db.query(CashRegister).filter(
+            CashRegister.client_id == user_id
+        ).all()
+        deleted_cash_count = len(cash_registers_to_delete)
+        for cash_register in cash_registers_to_delete:
+            db.delete(cash_register)
+        print(f"[УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ] Пользователь ID={user_id}: физически удалено {deleted_cash_count} касс")
+    
+    # 3. ФИЗИЧЕСКИ УДАЛЯЕМ пользователя
+    db.delete(user)
     db.commit()
     
+    print(f"[УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ] ✅ Пользователь ID={user_id} ({user_full_name}) физически удалён из БД")
+    
+    # 4. Если это администратор/менеджер с Telegram ID - удаляем из .env
+    if user_role in ['admin', 'manager'] and user_telegram_id:
+        try:
+            success = env_manager.remove_admin_telegram_id(user_telegram_id)
+            if success:
+                # Перезапускаем бота для применения изменений
+                env_manager.restart_bot_service()
+                print(f"✅ Telegram ID {user_telegram_id} удалён из .env после удаления пользователя {user_full_name}")
+            else:
+                print(f"⚠️  Не удалось удалить Telegram ID {user_telegram_id} из .env")
+        except Exception as e:
+            print(f"❌ Ошибка при удалении Telegram ID из .env: {e}")
+    
     return MessageResponse(
-        message=f"Пользователь '{user.full_name}' деактивирован"
+        message=f"Пользователь '{user_full_name}' физически удалён"
     )
 
 
@@ -630,7 +722,8 @@ async def get_user_full_details(
     
     # Получить дедлайны
     deadlines = db.query(Deadline).filter(
-        Deadline.client_id == user_id
+        Deadline.client_id == user_id,
+        Deadline.status == 'active'
     ).order_by(Deadline.expiration_date).all()
     
     today = date.today()
@@ -667,8 +760,14 @@ async def get_user_full_details(
         if deadline.cash_register_id:
             # Найти кассу
             register = next((r for r in cash_registers if r.id == deadline.cash_register_id), None)
-            deadline_data["cash_register_name"] = f"{register.model} ({register.factory_number})" if register else f"Касса #{deadline.cash_register_id}"
-            deadline_data["installation_address"] = None  # Поле installation_address больше не существует
+            if register:
+                # Используем register_name если есть, иначе model
+                register_display_name = register.register_name or register.model or f"Касса #{register.id}"
+                deadline_data["cash_register_name"] = register_display_name
+                deadline_data["installation_address"] = register.installation_address
+            else:
+                deadline_data["cash_register_name"] = f"Касса #{deadline.cash_register_id}"
+                deadline_data["installation_address"] = None
             deadline_data["deadline_id"] = deadline.id
             register_deadlines.append(deadline_data)
         else:
@@ -698,6 +797,8 @@ async def get_user_full_details(
                 "factory_number": reg.factory_number,
                 "registration_number": reg.registration_number,
                 "model": reg.model,
+                "register_name": reg.register_name,
+                "installation_address": reg.installation_address,
                 "fn_number": reg.fn_number,
                 "ofd_provider_id": reg.ofd_provider_id,
                 "notes": reg.notes,
@@ -777,7 +878,8 @@ async def send_deadlines_to_telegram(
         else:
             status_color = "green"
         
-        deadlines_data.append({
+        # Базовая информация о дедлайне
+        deadline_info = {
             'deadline_id': deadline.id,
             'client_name': user.company_name or user.full_name,
             'client_inn': user.inn or 'Не указано',
@@ -785,7 +887,17 @@ async def send_deadlines_to_telegram(
             'expiration_date': deadline.expiration_date,
             'days_remaining': days_diff,
             'status': status_color
-        })
+        }
+        
+        # Добавляем информацию о кассе, если дедлайн привязан к кассе
+        if deadline.cash_register_id and deadline.cash_register:
+            cash_register = deadline.cash_register
+            deadline_info['cash_register_model'] = cash_register.model or 'Не указана'
+            deadline_info['cash_register_serial'] = cash_register.factory_number or 'Не указан'
+            deadline_info['cash_register_name'] = cash_register.register_name or cash_register.model or 'ККТ'
+            deadline_info['installation_address'] = cash_register.installation_address
+        
+        deadlines_data.append(deadline_info)
     
     # Добавляем путь к bot в sys.path для импорта
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))

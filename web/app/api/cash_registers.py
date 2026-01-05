@@ -5,7 +5,7 @@ API для управления кассовыми аппаратами
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 from ..models import CashRegister
@@ -38,6 +38,8 @@ class CashRegisterCreate(BaseModel):
     factory_number: Optional[str] = Field(None, max_length=100, description="Заводской номер")
     registration_number: Optional[str] = Field(None, max_length=100, description="Регистрационный номер")
     model: Optional[str] = Field(None, max_length=255, description="Модель ККТ")
+    register_name: Optional[str] = Field(None, max_length=255, description="Название кассы")
+    installation_address: Optional[str] = Field(None, description="Адрес установки")
     fn_number: Optional[str] = Field(None, max_length=100, description="Номер ФН")
     ofd_provider_id: Optional[int] = Field(None, description="ID провайдера ОФД")
     ofd_contract_date: Optional[date] = Field(None, description="Дата договора с ОФД")
@@ -51,6 +53,8 @@ class CashRegisterUpdate(BaseModel):
     factory_number: Optional[str] = Field(None, max_length=100)
     registration_number: Optional[str] = Field(None, max_length=100)
     model: Optional[str] = Field(None, max_length=255)
+    register_name: Optional[str] = Field(None, max_length=255)
+    installation_address: Optional[str] = Field(None)
     fn_number: Optional[str] = Field(None, max_length=100)
     ofd_provider_id: Optional[int] = Field(None)
     ofd_contract_date: Optional[date] = Field(None)
@@ -67,6 +71,8 @@ class CashRegisterResponse(BaseModel):
     factory_number: Optional[str] = None
     registration_number: Optional[str] = None
     model: Optional[str] = None
+    register_name: Optional[str] = None
+    installation_address: Optional[str] = None
     fn_number: Optional[str] = None
     ofd_provider_id: Optional[int] = None
     ofd_contract_date: Optional[date] = None
@@ -139,6 +145,8 @@ async def create_cash_register(
             factory_number=data.factory_number,
             registration_number=data.registration_number,
             model=data.model,
+            register_name=data.register_name,
+            installation_address=data.installation_address,
             fn_number=data.fn_number,
             ofd_provider_id=data.ofd_provider_id,
             ofd_contract_date=data.ofd_contract_date,
@@ -154,10 +162,12 @@ async def create_cash_register(
         # Автоматическое создание дедлайнов (если сервис доступен)
         try:
             deadline_service = CashRegisterDeadlineService(db)
+            # Используем register_name если заполнено, иначе model или дефолтное значение
+            display_name = data.register_name or data.model or f"Касса #{register.id}"
             deadline_service.sync_deadlines_on_create(
                 cash_register_id=register.id,
                 user_id=register.client_id,
-                register_name=data.model or f"Касса #{register.id}",
+                register_name=display_name,
                 fn_replacement_date=data.fn_expiry_date,
                 ofd_renewal_date=data.ofd_expiry_date
             )
@@ -225,10 +235,12 @@ async def update_cash_register(
         # Автоматическая синхронизация дедлайнов
         try:
             deadline_service = CashRegisterDeadlineService(db)
+            # Используем register_name если заполнено, иначе model или дефолтное значение
+            display_name = register.register_name or register.model or f"Касса #{register.id}"
             deadline_service.sync_deadlines_on_update(
                 cash_register_id=register.id,
                 user_id=register.client_id,
-                register_name=register.model or f"Касса #{register.id}",
+                register_name=display_name,
                 old_fn_date=old_fn_date,
                 new_fn_date=register.fn_expiry_date,
                 old_ofd_date=old_ofd_date,
@@ -269,8 +281,22 @@ async def delete_cash_register(
             detail="Кассовый аппарат не найден"
         )
     
-    # Мягкое удаление
+    # Мягкое удаление кассы
     register.is_active = False
+    
+    # ФИЗИЧЕСКИ УДАЛЯЕМ все связанные дедлайны
+    from ..models.client import Deadline
+    
+    deadlines_to_delete = db.query(Deadline).filter(
+        Deadline.cash_register_id == register_id
+    ).all()
+    
+    deleted_count = len(deadlines_to_delete)
+    for deadline in deadlines_to_delete:
+        db.delete(deadline)
+    
+    print(f"[УДАЛЕНИЕ КАССЫ] Касса ID={register_id}: физически удалено {deleted_count} дедлайнов")
+    
     db.commit()
     
     return None

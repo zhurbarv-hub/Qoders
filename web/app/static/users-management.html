@@ -334,12 +334,11 @@
                             <th>Телефон</th>
                             <th>Telegram</th>
                             <th>Статус</th>
-                            <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+                            <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
                                 Загрузка пользователей...
                             </td>
                         </tr>
@@ -434,6 +433,23 @@
                                    onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
                                    onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
                         </div>
+                    </div>
+                    
+                    <!-- Telegram ID для админов и менеджеров -->
+                    <div id="telegramIdField" style="display: none; margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">telegram</i>
+                            Telegram ID
+                        </label>
+                        <input type="text" id="userTelegramId" pattern="[0-9]+" maxlength="20"
+                               placeholder="Например: 123456789"
+                               style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                               onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                               onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        <small style="color: #999;">Получить можно у @userinfobot в Telegram</small>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                         <div id="statusField">
                             <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
                                 <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">check_circle</i>
@@ -575,6 +591,6 @@
     </div>
 
     <script src="https://code.getmdl.io/1.3.0/material.min.js"></script>
-    <script src="/static/js/users-management.js"></script>
+    <script src="/static/js/users-management.js?v=3.edit"></script>
 </body>
 </html>

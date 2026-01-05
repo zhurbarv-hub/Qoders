@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def format_deadline_notification(deadline: Dict, days: int) -> str:
     """
-    Форматирование уведомления о дедлайне
+    Форматирование уведомления о дедлайне с полной детализацией
     
     Args:
         deadline (Dict): Информация о дедлайне
@@ -32,20 +32,60 @@ def format_deadline_notification(deadline: Dict, days: int) -> str:
             'expired': '❌'
         }.get(deadline.get('status', 'green'), '⚪')
         
+        # Определяем уровень срочности
+        days_remaining = deadline.get('days_remaining', days)
+        if days_remaining <= 0:
+            urgency = "❌ <b>ПРОСРОЧЕНО!</b>"
+        elif days_remaining <= 3:
+            urgency = "🔴 <b>КРИТИЧЕСКИ СРОЧНО!</b>"
+        elif days_remaining <= 7:
+            urgency = "🟡 <b>ТРЕБУЕТСЯ ВНИМАНИЕ</b>"
+        else:
+            urgency = "🟢 <b>НАПОМИНАНИЕ</b>"
+        
         # Форматируем дату
         if deadline.get('expiration_date'):
             exp_date = deadline['expiration_date'].strftime('%d.%m.%Y') if hasattr(deadline['expiration_date'], 'strftime') else str(deadline['expiration_date'])
         else:
             exp_date = 'Не указана'
             
-        message = (
-            f"{status_emoji} <b>Уведомление о дедлайне</b>\n\n"
-            f"<b>Клиент:</b> {deadline.get('client_name', 'Неизвестно')} (ИНН: {deadline.get('client_inn', 'Неизвестно')})\n"
-            f"<b>Сервис:</b> {deadline.get('deadline_type_name', 'Неизвестно')}\n"
-            f"<b>Дата окончания:</b> {exp_date}\n"
-            f"<b>Осталось дней:</b> {deadline.get('days_remaining', days)}\n\n"
-            f"⚠️ Пожалуйста, примите меры!"
-        )
+        # Формируем заголовок
+        message = f"{status_emoji} {urgency}\n"
+        message += "=" * 30 + "\n\n"
+        
+        # Основная информация
+        message += "📅 <b>ДЕТАЛИ ДЕДЛАЙНА</b>\n\n"
+        
+        # Информация о клиенте
+        message += "🏢 <b>Клиент:</b>\n"
+        message += f"   • Название: <b>{deadline.get('client_name', 'Неизвестно')}</b>\n"
+        message += f"   • ИНН: <code>{deadline.get('client_inn', 'Неизвестно')}</code>\n\n"
+        
+        # Информация о сервисе
+        message += "🛠 <b>Услуга/Сервис:</b>\n"
+        message += f"   • Тип: <b>{deadline.get('deadline_type_name', 'Неизвестно')}</b>\n"
+        
+        # Дополнительные данные о дедлайне (если есть)
+        if deadline.get('description'):
+            message += f"   • Описание: {deadline['description']}\n"
+        if deadline.get('deadline_id'):
+            message += f"   • ID дедлайна: <code>{deadline['deadline_id']}</code>\n"
+        message += "\n"
+        
+        # Информация о сроках
+        message += "⏰ <b>СРОКИ:</b>\n"
+        message += f"   • Дата окончания: <b>{exp_date}</b>\n"
+        message += f"   • Осталось дней: <b>{days_remaining}</b>\n\n"
+        
+        # Призыв к действию
+        if days_remaining <= 0:
+            message += "❌ <b>ДЕДЛАЙН ПРОСРОЧЕН! СРОЧНО ПРИМИТЕ МЕРЫ!</b>"
+        elif days_remaining <= 3:
+            message += "🔥 <b>ОСТАЛОСЬ МЕНЕЕ 3 ДНЕЙ! НЕМЕДЛЕННО СВЯЖИТЕСЬ С КЛИЕНТОМ!</b>"
+        elif days_remaining <= 7:
+            message += "⚠️ <b>ПОЖАЛУЙСТА, ПРИМИТЕ МЕРЫ В БЛИЖАЙШЕЕ ВРЕМЯ!</b>"
+        else:
+            message += "📌 Не забудьте об этом дедлайне!"
         
         return message
         
@@ -56,19 +96,19 @@ def format_deadline_notification(deadline: Dict, days: int) -> str:
 
 def format_deadline_list(deadlines: List[Dict], title: str = None) -> str:
     """
-    Форматирование списка дедлайнов
-    ОБНОВЛЕНО: добавлен параметр title для кастомизации заголовка
+    Форматирование списка дедлайнов с детализацией
+    ОБНОВЛЕНО: добавлена подробная информация о каждом дедлайне
     
     Args:
         deadlines (List[Dict]): Список дедлайнов
         title (str): Кастомный заголовок (опционально)
         
     Returns:
-        str: Отформатированный список
+        str: Отформатированный список с детализацией
     """
     try:
         if not deadlines:
-            return "📭 Нет предстоящих дедлайнов"
+            return "📭 <b>Нет предстоящих дедлайнов</b>"
             
         # Определяем эмодзи по статусу
         status_emoji = {
@@ -80,27 +120,108 @@ def format_deadline_list(deadlines: List[Dict], title: str = None) -> str:
         
         # Формируем заголовок
         if title:
-            message = f"<b>{title}</b>\n\n"
+            message = f"<b>{title}</b>\n"
         else:
-            message = "<b>📋 Список предстоящих дедлайнов:</b>\n\n"
+            message = "<b>📋 Список предстоящих дедлайнов</b>\n"
         
-        # Добавляем каждый дедлайн
+        message += "=" * 30 + "\n\n"
+        message += f"<b>Всего дедлайнов:</b> {len(deadlines)}\n\n"
+        
+        # Группируем по статусу для статистики
+        status_counts = {}
+        for d in deadlines:
+            status = d.get('status', 'green')
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        # Показываем статистику
+        if status_counts:
+            message += "<b>📊 Статистика:</b>\n"
+            if status_counts.get('expired', 0) > 0:
+                message += f"   ❌ Просрочено: <b>{status_counts['expired']}</b>\n"
+            if status_counts.get('red', 0) > 0:
+                message += f"   🔴 Срочно (&lt;7 дн): <b>{status_counts['red']}</b>\n"
+            if status_counts.get('yellow', 0) > 0:
+                message += f"   🟡 Внимание (7-14 дн): <b>{status_counts['yellow']}</b>\n"
+            if status_counts.get('green', 0) > 0:
+                message += f"   🟢 Хорошо (&gt;14 дн): <b>{status_counts['green']}</b>\n"
+            message += "\n"
+        
+        message += "<b>📋 ДЕТАЛИ ДЕДЛАЙНОВ:</b>\n"
+        message += "=" * 30 + "\n\n"
+        
+        # Добавляем каждый дедлайн с детализацией
         for i, deadline in enumerate(deadlines, 1):
             emoji = status_emoji.get(deadline.get('status', 'green'), '⚪')
+            days_remaining = deadline.get('days_remaining', 'N/A')
+            
+            # Определяем уровень срочности
+            if isinstance(days_remaining, int):
+                if days_remaining <= 0:
+                    urgency_text = "ПРОСРОЧЕНО!"
+                elif days_remaining <= 3:
+                    urgency_text = "КРИТИЧНО!"
+                elif days_remaining <= 7:
+                    urgency_text = "Требует внимания"
+                else:
+                    urgency_text = "В норме"
+            else:
+                urgency_text = "Неизвестно"
             
             # Форматируем дату
             if deadline.get('expiration_date'):
                 exp_date = deadline['expiration_date'].strftime('%d.%m.%Y') if hasattr(deadline['expiration_date'], 'strftime') else str(deadline['expiration_date'])
             else:
                 exp_date = 'Не указана'
-                
-            message += (
-                f"{i}. {emoji} <b>{deadline.get('client_name', 'Неизвестно')}</b> "
-                f"({deadline.get('client_inn', 'Неизвестно')})\n"
-                f"   {deadline.get('deadline_type_name', 'Неизвестно')} - "
-                f"{exp_date} ({deadline.get('days_remaining', 'N/A')} дней)\n\n"
-            )
             
+            # Формируем блок дедлайна
+            message += f"<b>{i}.</b> {emoji} <b>{urgency_text}</b>\n"
+            message += f"━━━━━━━━━━━━━━━━\n"
+            
+            # Информация о клиенте
+            message += f"🏢 <b>Клиент:</b>\n"
+            message += f"   • {deadline.get('client_name', 'Неизвестно')}\n"
+            message += f"   • ИНН: <code>{deadline.get('client_inn', 'Неизвестно')}</code>\n\n"
+            
+            # Информация о сервисе
+            message += f"🛠 <b>Услуга:</b> {deadline.get('deadline_type_name', 'Неизвестно')}\n"
+            
+            # Информация о кассе (если есть)
+            if deadline.get('cash_register_model') or deadline.get('cash_register_serial'):
+                message += f"\n🖨️ <b>ККТ:</b>\n"
+                if deadline.get('cash_register_name'):
+                    message += f"   • Название: <b>{deadline['cash_register_name']}</b>\n"
+                if deadline.get('cash_register_model'):
+                    message += f"   • Модель: {deadline['cash_register_model']}\n"
+                if deadline.get('cash_register_serial'):
+                    message += f"   • Зав. №: <code>{deadline['cash_register_serial']}</code>\n"
+                if deadline.get('installation_address'):
+                    message += f"   • Адрес: {deadline['installation_address']}\n"
+            
+            # Дополнительная информация (если есть)
+            if deadline.get('description'):
+                message += f"\n📝 <b>Описание:</b> {deadline['description']}\n"
+            
+            # Сроки
+            message += f"\n⏰ <b>Дата окончания:</b> {exp_date}\n"
+            message += f"⌛️ <b>Осталось:</b> "
+            if isinstance(days_remaining, int):
+                if days_remaining == 0:
+                    message += "<b>Истекает СЕГОДНЯ!</b>\n"
+                elif days_remaining == 1:
+                    message += "<b>1 день</b>\n"
+                elif days_remaining < 0:
+                    message += f"<b>Просрочено на {abs(days_remaining)} дн.</b>\n"
+                else:
+                    message += f"<b>{days_remaining} дн.</b>\n"
+            else:
+                message += f"{days_remaining}\n"
+            
+            message += "\n"
+        
+        # Подсказка внизу
+        message += "━━━━━━━━━━━━━━━━\n"
+        message += "💡 <i>Используйте /help для просмотра всех команд</i>"
+        
         return message.strip()
         
     except Exception as e:
@@ -373,6 +494,93 @@ def format_help_message(user_role: str) -> str:
         )
         
     return message
+
+
+def format_api_statistics(stats: Dict) -> str:
+    """
+    Форматирование статистики из Web API
+    
+    Args:
+        stats (Dict): Статистика системы
+        
+    Returns:
+        str: Отформатированное сообщение
+    """
+    try:
+        now = datetime.now().strftime('%d.%m.%Y %H:%M')
+        
+        # Источник данных
+        if stats.get('data_source') == 'api':
+            source = f"🔌 Web API ({stats.get('api_response_time', 0)}ms)"
+        else:
+            source = "💾 База данных"
+        
+        message = "📊 <b>Статистика системы</b>\n\n"
+        
+        # Клиенты
+        message += "👥 <b>Клиенты:</b>\n"
+        message += f"   Всего: <b>{stats.get('total_clients', stats.get('total_clients_count', 0))}</b>\n"
+        message += f"   Активные: <b>{stats.get('active_clients', stats.get('active_clients_count', 0))}</b>\n\n"
+        
+        # Дедлайны
+        message += "📅 <b>Дедлайны:</b>\n"
+        message += f"   Всего: <b>{stats.get('total_deadlines', stats.get('total_deadlines_count', 0))}</b>\n"
+        message += f"   Активные: <b>{stats.get('active_deadlines', stats.get('active_deadlines_count', 0))}</b>\n\n"
+        
+        # Статусы дедлайнов
+        message += "🚦 <b>Статусы дедлайнов:</b>\n"
+        message += f"   🟢 Безопасно (&gt;14 дней): <b>{stats.get('status_green', 0)}</b>\n"
+        message += f"   🟡 Внимание (7-14 дней): <b>{stats.get('status_yellow', 0)}</b>\n"
+        message += f"   🔴 Критично (&lt;7 дней): <b>{stats.get('status_red', 0)}</b>\n"
+        message += f"   ❌ Просроченные: <b>{stats.get('status_expired', 0)}</b>\n\n"
+        
+        # Метаданные
+        message += f"📡 <b>Источник:</b> {source}\n"
+        message += f"🕒 <b>Обновлено:</b> {now}"
+        
+        return message
+        
+    except Exception as e:
+        logger.error(f"Ошибка форматирования статистики: {e}")
+        return "⚠️ Ошибка при формировании статистики"
+
+
+def format_health_status(health_data: Dict) -> str:
+    """
+    Форматирование статуса здоровья Web API
+    
+    Args:
+        health_data (Dict): Данные проверки
+        
+    Returns:
+        str: Отформатированное сообщение
+    """
+    try:
+        message = "🏥 <b>Web API Health Check</b>\n\n"
+        
+        # URL API
+        message += f"🌐 <b>URL:</b> <code>{health_data.get('api_url', 'N/A')}</code>\n\n"
+        
+        # Статус API
+        if health_data.get('api_available'):
+            message += "✅ <b>Статус API:</b> Онлайн\n"
+            message += f"⏱ <b>Время ответа:</b> {health_data.get('response_time', 0)}ms\n"
+        else:
+            message += "❌ <b>Статус API:</b> Оффлайн\n"
+            if health_data.get('error'):
+                message += f"\n⚠️ <b>Ошибка:</b>\n<code>{health_data['error'][:200]}</code>\n"
+        
+        # Статус токена
+        if health_data.get('token_valid'):
+            message += "\n🔑 <b>Токен:</b> Валиден\n"
+        else:
+            message += "\n⚠️ <b>Токен:</b> Невалиден/Истёк\n"
+        
+        return message
+        
+    except Exception as e:
+        logger.error(f"Ошибка форматирования health status: {e}")
+        return "⚠️ Ошибка при формировании health status"
 
 
 if __name__ == "__main__":

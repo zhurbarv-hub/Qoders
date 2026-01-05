@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # ОТНОСИТЕЛЬНЫЕ ИМПОРТЫ
 from .config import settings
-from .api import auth, clients, deadline_types, deadlines, dashboard, export, users, cash_registers, ofd_providers, database_management
+from .api import auth, clients, deadline_types, deadlines, dashboard, export, users, cash_registers, ofd_providers, database_management, support_requests
 
 # Настройка логирования
 logging.basicConfig(
@@ -63,6 +63,7 @@ app.include_router(users.router)
 app.include_router(cash_registers.router)
 app.include_router(ofd_providers.router)
 app.include_router(database_management.router)
+app.include_router(support_requests.router)
 
 # Путь к статическим файлам
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -93,11 +94,26 @@ async def startup_event():
     logger.info(f"  - /api/dashboard (Dashboard)")
     logger.info(f"  - /api/export (Data Export)")
     logger.info(f"  - /api/database (Database Management)")
+    logger.info(f"  - /api/support-requests (Support Requests)")
+    
+    # Инициализация планировщика автобэкапов
+    try:
+        from .services.backup_scheduler import init_scheduler
+        init_scheduler()
+    except Exception as e:
+        logger.error(f"⚠️ Ошибка инициализации планировщика автобэкапов: {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Действия при остановке приложения"""
+    # Остановка планировщика
+    try:
+        from .services.backup_scheduler import shutdown_scheduler
+        shutdown_scheduler()
+    except Exception as e:
+        logger.error(f"⚠️ Ошибка остановки планировщика: {e}")
+    
     logger.info("🛑 FastAPI приложение остановлено")
 
 

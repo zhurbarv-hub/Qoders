@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (userElement) {
         userElement.textContent = user.full_name || user.username || 'Пользователь';
     }
-
+    
     // Инициализация навигации
     initNavigation();
     
@@ -135,6 +135,8 @@ async function loadDashboardData() {
 
 // Обновление карточек статистики
 function updateStatisticsCards(data) {
+    console.log('[DEBUG] updateStatisticsCards вызван с данными:', data);
+    
     // Всего клиентов
     const totalClientsEl = document.getElementById('totalClients');
     if (totalClientsEl) totalClientsEl.textContent = data.total_clients || 0;
@@ -142,6 +144,17 @@ function updateStatisticsCards(data) {
     // Активных клиентов
     const activeClientsEl = document.getElementById('activeClients');
     if (activeClientsEl) activeClientsEl.textContent = data.active_clients || 0;
+
+    // Всего касс
+    const totalCashRegistersEl = document.getElementById('totalCashRegisters');
+    console.log('[DEBUG] totalCashRegisters элемент:', totalCashRegistersEl);
+    console.log('[DEBUG] total_cash_registers из data:', data.total_cash_registers);
+    if (totalCashRegistersEl) {
+        totalCashRegistersEl.textContent = data.total_cash_registers || 0;
+        console.log('[DEBUG] Значение установлено:', totalCashRegistersEl.textContent);
+    } else {
+        console.error('[ERROR] Элемент totalCashRegisters не найден!');
+    }
 
     // Всего сроков
     const totalDeadlinesEl = document.getElementById('totalDeadlines');
@@ -369,7 +382,14 @@ function renderUrgentDeadlines(deadlines) {
         
         // Получение имени клиента и типа дедлайна
         const clientName = deadline.client?.company_name || 'Не указан';
-        const deadlineType = deadline.deadline_type?.name || 'Не указан';
+        const deadlineType = deadline.deadline_type?.name || deadline.deadline_type?.type_name || 'Не указан';
+        
+        console.log('📖 Дедлайн ID=' + deadline.id + ':', {
+            client: deadline.client,
+            deadline_type: deadline.deadline_type,
+            clientName,
+            deadlineType
+        });
 
         row.innerHTML = `
             <td class="mdl-data-table__cell--non-numeric">${clientName}</td>

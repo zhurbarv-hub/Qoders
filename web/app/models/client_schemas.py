@@ -254,6 +254,7 @@ class DashboardStats(BaseModel):
     active_clients: int
     total_deadlines: int
     active_deadlines: int
+    total_cash_registers: int  # Общее количество касс активных клиентов
     status_green: int  # > 14 дней
     status_yellow: int  # 7-14 дней
     status_red: int  # 0-7 дней

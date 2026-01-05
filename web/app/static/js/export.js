@@ -44,12 +44,12 @@ function renderExportPage() {
                     </div>
                     <div class="mdl-card__actions mdl-card--border">
                         <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" 
-                                onclick="exportClients('excel')">
-                            <i class="material-icons">download</i> Excel
+                                onclick="exportClients('csv')">
+                            <i class="material-icons">download</i> Excel (CSV)
                         </button>
                         <button class="mdl-button mdl-js-button mdl-button--raised" 
-                                onclick="exportClients('csv')">
-                            <i class="material-icons">download</i> CSV
+                                onclick="exportClients('json')">
+                            <i class="material-icons">download</i> JSON
                         </button>
                     </div>
                 </div>
@@ -73,12 +73,12 @@ function renderExportPage() {
                     </div>
                     <div class="mdl-card__actions mdl-card--border">
                         <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" 
-                                onclick="exportDeadlines('excel')">
-                            <i class="material-icons">download</i> Excel
+                                onclick="exportDeadlines('csv')">
+                            <i class="material-icons">download</i> Excel (CSV)
                         </button>
                         <button class="mdl-button mdl-js-button mdl-button--raised" 
-                                onclick="exportDeadlines('csv')">
-                            <i class="material-icons">download</i> CSV
+                                onclick="exportDeadlines('json')">
+                            <i class="material-icons">download</i> JSON
                         </button>
                     </div>
                 </div>
@@ -101,12 +101,12 @@ function renderExportPage() {
                     </div>
                     <div class="mdl-card__actions mdl-card--border">
                         <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" 
-                                onclick="exportDeadlineTypes('excel')">
-                            <i class="material-icons">download</i> Excel
+                                onclick="exportDeadlineTypes('csv')">
+                            <i class="material-icons">download</i> Excel (CSV)
                         </button>
                         <button class="mdl-button mdl-js-button mdl-button--raised" 
-                                onclick="exportDeadlineTypes('csv')">
-                            <i class="material-icons">download</i> CSV
+                                onclick="exportDeadlineTypes('json')">
+                            <i class="material-icons">download</i> JSON
                         </button>
                     </div>
                 </div>

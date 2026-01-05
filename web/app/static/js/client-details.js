@@ -234,64 +234,104 @@ function renderCashRegisters() {
     console.log('Всего ОФД провайдеров загружено:', ofdProviders.length);
     console.log('Список ОФД провайдеров:', ofdProviders);
     
-    let html = '';
+    // Создаём таблицу
+    let html = `
+        <table class="mdl-data-table mdl-js-data-table mdl-shadow--2dp" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <th class="mdl-data-table__cell--non-numeric" style="padding: 12px; font-weight: 600; border: none;">Название ККТ</th>
+                    <th class="mdl-data-table__cell--non-numeric" style="padding: 12px; font-weight: 600; border: none;">Заводской номер</th>
+                    <th class="mdl-data-table__cell--non-numeric" style="padding: 12px; font-weight: 600; border: none;">Номер ФН</th>
+                    <th class="mdl-data-table__cell--non-numeric" style="padding: 12px; font-weight: 600; border: none;">Срок действия ФН</th>
+                    <th class="mdl-data-table__cell--non-numeric" style="padding: 12px; font-weight: 600; border: none;">Срок действия ОФД</th>
+                    <th class="mdl-data-table__cell--non-numeric" style="padding: 12px; font-weight: 600; text-align: center; border: none;">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
     registers.forEach(reg => {
         // Находим название ОФД провайдера по ID
-        console.log('Обработка кассы:', reg.model, 'OFD ID:', reg.ofd_provider_id, 'Тип:', typeof reg.ofd_provider_id);
         const ofdProvider = reg.ofd_provider_id 
             ? ofdProviders.find(p => p.id === reg.ofd_provider_id)
             : null;
-        const ofdName = ofdProvider ? ofdProvider.name : '-';  // Используем 'name' вместо 'provider_name'
-        console.log('ОФД провайдер найден:', ofdProvider, 'Название:', ofdName);
+        const ofdName = ofdProvider ? ofdProvider.name : '-';
+        
+        // Форматирование дат
+        const fnDate = reg.fn_expiry_date ? formatDateRU(reg.fn_expiry_date) : '-';
+        const ofdDate = reg.ofd_expiry_date ? formatDateRU(reg.ofd_expiry_date) : '-';
+        
+        // Определяем цвет строки в зависимости от срока
+        let rowBgColor = 'white';
+        if (reg.fn_expiry_date || reg.ofd_expiry_date) {
+            const today = new Date();
+            const fnExpiry = reg.fn_expiry_date ? new Date(reg.fn_expiry_date) : null;
+            const ofdExpiry = reg.ofd_expiry_date ? new Date(reg.ofd_expiry_date) : null;
+            
+            const fnDays = fnExpiry ? Math.floor((fnExpiry - today) / (1000 * 60 * 60 * 24)) : 999;
+            const ofdDays = ofdExpiry ? Math.floor((ofdExpiry - today) / (1000 * 60 * 60 * 24)) : 999;
+            const minDays = Math.min(fnDays, ofdDays);
+            
+            if (minDays < 0) {
+                rowBgColor = '#ffebee'; // Просрочено - красный
+            } else if (minDays <= 7) {
+                rowBgColor = '#fff3e0'; // Критично - оранжевый
+            } else if (minDays <= 14) {
+                rowBgColor = '#fffde7'; // Внимание - жёлтый
+            }
+        }
         
         html += `
-            <div class="register-card" data-register-id="${reg.id}">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                    <h4 style="margin: 0;">
-                        <i class="material-icons" style="vertical-align: middle;">point_of_sale</i>
-                        ${reg.model || 'Касса'}
-                    </h4>
-                    <div>
-                        <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteRegister(${reg.id})" title="Удалить">
-                            <i class="material-icons">delete</i>
-                        </button>
+            <tr data-register-id="${reg.id}" 
+                style="background: ${rowBgColor}; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" 
+                onmouseover="this.style.transform='scale(1.01)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'" 
+                onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
+                <td class="mdl-data-table__cell--non-numeric" style="padding: 12px; border-bottom: 1px solid #e0e0e0;">
+                    <div style="font-weight: 600; color: #333;">${reg.register_name || reg.model || 'Касса'}</div>
+                    <div style="font-size: 11px; color: #666; margin-top: 2px;">${reg.model || ''}</div>
+                </td>
+                <td class="mdl-data-table__cell--non-numeric" style="padding: 12px; border-bottom: 1px solid #e0e0e0;">
+                    <span style="font-family: monospace; font-size: 13px;">${reg.factory_number || '-'}</span>
+                </td>
+                <td class="mdl-data-table__cell--non-numeric" style="padding: 12px; border-bottom: 1px solid #e0e0e0;">
+                    <span style="font-family: monospace; font-size: 13px;">${reg.fn_number || '-'}</span>
+                </td>
+                <td class="mdl-data-table__cell--non-numeric" style="padding: 12px; border-bottom: 1px solid #e0e0e0;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="material-icons" style="font-size: 16px; color: #666;">event</i>
+                        <span style="font-weight: 500;">${fnDate}</span>
                     </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 200px 1fr; gap: 10px; font-size: 14px;">
-                    <div style="font-weight: bold;">Заводской номер:</div>
-                    <div>${reg.factory_number || '-'}</div>
-                    <div style="font-weight: bold;">Номер ФН:</div>
-                    <div>${reg.fn_number || '-'}</div>
-                    <div style="font-weight: bold;">Наименование ОФД:</div>
-                    <div>${ofdName}</div>
-                    <div style="font-weight: bold;">Дата окончания ФН:</div>
-                    <div>${reg.fn_expiry_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.fn_expiry_date)}</span>` : '-'}</div>
-                    <div style="font-weight: bold;">Дата окончания ОФД:</div>
-                    <div>${reg.ofd_expiry_date ? `<span style="color: #3f51b5;">🗓️ ${formatDateRU(reg.ofd_expiry_date)}</span>` : '-'}</div>
-                    <div style="font-weight: bold;">Примечание:</div>
-                    <div>${reg.notes || '-'}</div>
-                    <div style="font-weight: bold;">Статус:</div>
-                    <div>
-                        <span class="badge ${reg.is_active ? 'badge-green' : 'badge-red'}">
-                            ${reg.is_active ? 'Активна' : 'Неактивна'}
-                        </span>
+                </td>
+                <td class="mdl-data-table__cell--non-numeric" style="padding: 12px; border-bottom: 1px solid #e0e0e0;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="material-icons" style="font-size: 16px; color: #666;">event</i>
+                        <span style="font-weight: 500;">${ofdDate}</span>
                     </div>
-                </div>
-            </div>
+                </td>
+                <td class="mdl-data-table__cell--non-numeric" style="padding: 12px; text-align: center; border-bottom: 1px solid #e0e0e0;">
+                    <button class="mdl-button mdl-js-button mdl-button--icon" onclick="event.stopPropagation(); deleteRegister(${reg.id})" title="Удалить">
+                        <i class="material-icons" style="color: #dc3545;">delete</i>
+                    </button>
+                </td>
+            </tr>
         `;
     });
+    
+    html += `
+            </tbody>
+        </table>
+    `;
 
     section.innerHTML = html;
     
-    // Добавление обработчиков клика на карточки кассовых аппаратов
+    // Добавление обработчиков клика на строки таблицы
     setTimeout(() => {
-        const registerCards = document.querySelectorAll('.register-card');
-        registerCards.forEach(card => {
-            card.style.cursor = 'pointer';
-            card.addEventListener('click', function(e) {
+        const rows = document.querySelectorAll('#cashRegistersSection tr[data-register-id]');
+        rows.forEach(row => {
+            row.addEventListener('click', function(e) {
                 // Проверяем, что клик не по кнопке удаления
                 if (!e.target.closest('button') && !e.target.closest('.mdl-button')) {
-                    const registerId = parseInt(card.getAttribute('data-register-id'));
+                    const registerId = parseInt(row.getAttribute('data-register-id'));
                     editRegister(registerId);
                 }
             });
@@ -710,6 +750,77 @@ async function copyTelegramCode() {
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С КАССОВЫМИ АППАРАТАМИ ==========
 
+// Функции для работы с РН ККТ (разбитое на 4 части)
+function handleRnInput(input, nextFieldId) {
+    // Разрешаем только цифры
+    input.value = input.value.replace(/[^0-9]/g, '');
+    
+    // Автоматический переход на следующее поле
+    if (input.value.length === 4 && nextFieldId) {
+        document.getElementById(nextFieldId).focus();
+    }
+}
+
+function handleRnBackspace(event, prevFieldId) {
+    // При Backspace на пустом поле переходим на предыдущее
+    if (event.key === 'Backspace' && event.target.value === '' && prevFieldId) {
+        const prevField = document.getElementById(prevFieldId);
+        prevField.focus();
+        prevField.setSelectionRange(prevField.value.length, prevField.value.length);
+    }
+}
+
+function handleRnPaste(event) {
+    event.preventDefault();
+    const pasteData = event.clipboardData.getData('text').replace(/[^0-9]/g, '');
+    
+    if (pasteData.length > 0) {
+        // Распределяем цифры по полям
+        const part1 = pasteData.substring(0, 4);
+        const part2 = pasteData.substring(4, 8);
+        const part3 = pasteData.substring(8, 12);
+        const part4 = pasteData.substring(12, 16);
+        
+        document.getElementById('rnPart1').value = part1;
+        if (part2) document.getElementById('rnPart2').value = part2;
+        if (part3) document.getElementById('rnPart3').value = part3;
+        if (part4) document.getElementById('rnPart4').value = part4;
+        
+        // Фокус на последнем заполненном поле
+        if (part4) {
+            document.getElementById('rnPart4').focus();
+        } else if (part3) {
+            document.getElementById('rnPart3').focus();
+        } else if (part2) {
+            document.getElementById('rnPart2').focus();
+        } else {
+            document.getElementById('rnPart1').focus();
+        }
+    }
+}
+
+function getRnValue() {
+    // Собираем РН из 4 полей
+    const part1 = document.getElementById('rnPart1').value;
+    const part2 = document.getElementById('rnPart2').value;
+    const part3 = document.getElementById('rnPart3').value;
+    const part4 = document.getElementById('rnPart4').value;
+    
+    const fullRn = part1 + part2 + part3 + part4;
+    return fullRn || null;
+}
+
+function setRnValue(value) {
+    // Заполняем 4 поля из строки
+    const rn = (value || '').replace(/[^0-9]/g, '');
+    document.getElementById('rnPart1').value = rn.substring(0, 4) || '';
+    document.getElementById('rnPart2').value = rn.substring(4, 8) || '';
+    document.getElementById('rnPart3').value = rn.substring(8, 12) || '';
+    document.getElementById('rnPart4').value = rn.substring(12, 16) || '';
+}
+
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С КАССОВЫМИ АППАРАТАМИ ==========
+
 // Загрузить список ОФД провайдеров
 async function loadOFDProviders() {
     try {
@@ -763,8 +874,9 @@ function editRegister(registerId) {
     document.getElementById('registerName').value = register.register_name || '';  // Название кассы
     document.getElementById('registerModel').value = register.model || '';  // Модель ККТ
     document.getElementById('serialNumber').value = register.factory_number || '';  // factory_number вместо serial_number
+    setRnValue(register.registration_number);  // РН ККТ - используем новую функцию
     document.getElementById('fiscalDriveNumber').value = register.fn_number || '';  // fn_number вместо fiscal_drive_number
-    document.getElementById('installationAddress').value = '';  // Это поле больше не используется
+    document.getElementById('installationAddress').value = register.installation_address || '';  // Адрес установки
     document.getElementById('registerNotes').value = register.notes || '';
     document.getElementById('fnReplacementDate').value = register.fn_expiry_date || '';  // fn_expiry_date вместо fn_replacement_date
     document.getElementById('ofdRenewalDate').value = register.ofd_expiry_date || '';  // ofd_expiry_date вместо ofd_renewal_date
@@ -796,6 +908,7 @@ async function saveRegister() {
     const registerName = document.getElementById('registerName').value.trim();
     const registerModel = document.getElementById('registerModel').value.trim();
     const serialNumber = document.getElementById('serialNumber').value.trim();
+    const registrationNumber = getRnValue();  // РН ККТ - используем новую функцию
     const fiscalDriveNumber = document.getElementById('fiscalDriveNumber').value.trim();
     const installationAddress = document.getElementById('installationAddress').value.trim();
     const ofdProviderId = document.getElementById('ofdProvider').value;  // Получаем ID провайдера
@@ -813,7 +926,9 @@ async function saveRegister() {
         register_name: registerName,  // Название кассы
         model: registerModel,  // Модель ККТ
         factory_number: serialNumber,  // Заводской номер (вместо serial_number)
+        registration_number: registrationNumber || null,  // РН ККТ
         fn_number: fiscalDriveNumber,  // Номер ФН (вместо fiscal_drive_number)
+        installation_address: installationAddress,  // Адрес установки
         ofd_provider_id: ofdProviderId ? parseInt(ofdProviderId) : null,
         notes: registerNotes || '',
         fn_expiry_date: fnReplacementDate,  // Дата окончания ФН (вместо fn_replacement_date)
@@ -1456,10 +1571,7 @@ async function saveCompanyName(newName, inputElement) {
     if (!newName) {
         alert('Название компании не может быть пустым');
         // Возвращаем старое значение
-        const span = document.createElement('span');
-        span.id = 'companyNameText';
-        span.textContent = clientData.name || 'Без названия';
-        inputElement.replaceWith(span);
+        restoreCompanyNameDisplay(clientData.name || 'Без названия', inputElement);
         return;
     }
     
@@ -1470,7 +1582,7 @@ async function saveCompanyName(newName, inputElement) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${getToken()}`
             },
-            body: JSON.stringify({ name: newName })
+            body: JSON.stringify({ company_name: newName })
         });
         
         if (!response.ok) {
@@ -1481,11 +1593,8 @@ async function saveCompanyName(newName, inputElement) {
         // Обновляем локальные данные
         clientData.name = newName;
         
-        // Восстанавливаем отображение
-        const span = document.createElement('span');
-        span.id = 'companyNameText';
-        span.textContent = newName;
-        inputElement.replaceWith(span);
+        // Восстанавливаем отображение с иконкой редактирования
+        restoreCompanyNameDisplay(newName, inputElement);
         
         showNotification('Название компании успешно обновлено');
     } catch (error) {
@@ -1493,9 +1602,14 @@ async function saveCompanyName(newName, inputElement) {
         alert(`Ошибка: ${error.message}`);
         
         // Возвращаем старое значение
-        const span = document.createElement('span');
-        span.id = 'companyNameText';
-        span.textContent = clientData.name || 'Без названия';
-        inputElement.replaceWith(span);
+        restoreCompanyNameDisplay(clientData.name || 'Без названия', inputElement);
     }
+}
+
+// Восстановить отображение названия компании
+function restoreCompanyNameDisplay(name, inputElement) {
+    const span = document.createElement('span');
+    span.id = 'companyNameText';
+    span.textContent = name;
+    inputElement.replaceWith(span);
 }

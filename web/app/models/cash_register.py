@@ -18,6 +18,8 @@ class CashRegister(Base):
     factory_number = Column(String(100))  # Заводской номер
     registration_number = Column(String(100))  # Регистрационный номер
     model = Column(String(100))  # Модель ККТ (ограничение 100 символов)
+    register_name = Column(String(255))  # Название кассы (пользовательское)
+    installation_address = Column(Text)  # Адрес установки
     fn_number = Column(String(100))  # Номер фискального накопителя
     ofd_provider_id = Column(Integer, ForeignKey('ofd_providers.id'))  # Провайдер ОФД
     ofd_contract_date = Column(Date)  # Дата договора с ОФД

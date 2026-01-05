@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Загрузить список бэкапов
     await loadBackups();
+    
+    // Загрузить настройки автобэкапа
+    await loadBackupSchedule();
 
     // Инициализация диалогов
     initDialogs();
@@ -92,22 +95,34 @@ async function loadBackups() {
 
 // Отобразить список бэкапов
 function displayBackups(data) {
+    console.log('📊 displayBackups: Получены данные:', data);
+    
     const tbody = document.getElementById('backupsTableBody');
     tbody.innerHTML = '';
 
     // Обновить статистику
-    document.getElementById('totalBackups').textContent = data.total_count;
-    document.getElementById('totalSize').textContent = `${data.total_size_mb} МБ`;
+    const totalBackups = document.getElementById('totalBackups');
+    const totalSize = document.getElementById('totalSize');
+    const lastBackup = document.getElementById('lastBackup');
     
-    if (data.backups.length > 0) {
-        const lastBackup = new Date(data.backups[0].created_at);
-        document.getElementById('lastBackup').textContent = formatDateTime(lastBackup);
+    console.log('📈 Элементы:', {
+        totalBackups: totalBackups ? 'found' : 'NOT FOUND',
+        totalSize: totalSize ? 'found' : 'NOT FOUND',
+        lastBackup: lastBackup ? 'found' : 'NOT FOUND'
+    });
+    
+    if (totalBackups) totalBackups.textContent = data.total_count || 0;
+    if (totalSize) totalSize.textContent = `${data.total_size_mb || 0} МБ`;
+    
+    if (data.backups && data.backups.length > 0) {
+        const lastBackupDate = new Date(data.backups[0].created_at);
+        if (lastBackup) lastBackup.textContent = formatDateTime(lastBackupDate);
     } else {
-        document.getElementById('lastBackup').textContent = 'Нет копий';
+        if (lastBackup) lastBackup.textContent = 'Нет копий';
     }
 
     // Заполнить таблицу
-    if (data.backups.length === 0) {
+    if (!data.backups || data.backups.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Нет резервных копий</td></tr>';
         return;
     }
@@ -299,7 +314,23 @@ async function confirmRestore() {
         return;
     }
 
+    // Закрыть диалог выбора и показать прогресс
+    closeRestoreDialog();
+    
+    const progressDialog = document.getElementById('restoreProgressDialog');
+    const progressText = document.getElementById('restoreProgressText');
+    const progressBar = document.getElementById('restoreProgress');
+    
+    progressDialog.showModal();
+    
+    // Инициализировать MDL прогресс-бар
+    if (typeof componentHandler !== 'undefined') {
+        componentHandler.upgradeElement(progressBar);
+    }
+
     try {
+        progressText.textContent = '🔒 Проверка пароля...';
+        
         const response = await fetch(`${API_BASE_URL}/database/restore`, {
             method: 'POST',
             headers: {
@@ -313,17 +344,20 @@ async function confirmRestore() {
         });
 
         if (response.ok) {
-            alert('База данных успешно восстановлена! Страница будет перезагружена.');
-            closeRestoreDialog();
+            progressText.textContent = '✅ База данных успешно восстановлена!';
+            
+            // Подождать 2 секунды и перезагрузить
             setTimeout(() => {
                 window.location.reload();
-            }, 1000);
+            }, 2000);
         } else {
             const error = await response.json();
+            progressDialog.close();
             alert(`Ошибка: ${error.detail}`);
         }
     } catch (error) {
         console.error('Ошибка:', error);
+        progressDialog.close();
         alert('Ошибка подключения к серверу');
     }
 }
@@ -377,6 +411,166 @@ async function confirmClear() {
             setTimeout(() => {
                 window.location.href = '/static/login.html';
             }, 1000);
+        } else {
+            const error = await response.json();
+            alert(`Ошибка: ${error.detail}`);
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Ошибка подключения к серверу');
+    }
+}
+
+// ========== ФУНКЦИИ АВТОМАТИЧЕСКОГО БЭКАПА ==========
+
+// Загрузить настройки автобэкапа
+async function loadBackupSchedule() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/database/backup-schedule`, {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+
+        if (response.status === 401) {
+            logout();
+            return;
+        }
+
+        if (response.ok) {
+            const schedule = await response.json();
+            displayBackupSchedule(schedule);
+        } else {
+            console.error('Ошибка загрузки расписания');
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки расписания:', error);
+    }
+}
+
+// Отобразить настройки расписания
+function displayBackupSchedule(schedule) {
+    const enabledCheckbox = document.getElementById('autoBackupEnabled');
+    enabledCheckbox.checked = schedule.enabled;
+    
+    // Обновить визуальное состояние MDL переключателя
+    const switchParent = enabledCheckbox.parentElement;
+    if (schedule.enabled) {
+        switchParent.classList.add('is-checked');
+    } else {
+        switchParent.classList.remove('is-checked');
+    }
+    
+    const settingsDiv = document.getElementById('autoBackupSettings');
+    settingsDiv.style.display = schedule.enabled ? 'block' : 'none';
+    
+    const statusDiv = document.getElementById('autoBackupStatus');
+    if (schedule.enabled) {
+        statusDiv.innerHTML = '<span style="color: #4caf50;">✅ Автобэкап включён</span>';
+    } else {
+        statusDiv.innerHTML = '<span style="color: #999;">⏸️ Автобэкап отключён</span>';
+    }
+    
+    document.getElementById('backupFrequency').value = schedule.frequency;
+    
+    const timeParts = schedule.time_of_day.split(':');
+    document.getElementById('backupTime').value = `${timeParts[0]}:${timeParts[1]}`;
+    
+    if (schedule.day_of_week !== null) {
+        document.getElementById('dayOfWeek').value = schedule.day_of_week;
+    }
+    
+    if (schedule.day_of_month !== null) {
+        document.getElementById('dayOfMonth').value = schedule.day_of_month;
+    }
+    
+    document.getElementById('retentionDays').value = schedule.retention_days;
+    
+    updateFrequencyFields();
+    
+    if (schedule.last_run_at) {
+        document.getElementById('lastRunTime').textContent = formatDateTime(new Date(schedule.last_run_at));
+    } else {
+        document.getElementById('lastRunTime').textContent = 'Не выполнялся';
+    }
+    
+    if (schedule.next_run_at) {
+        document.getElementById('nextRunTime').textContent = formatDateTime(new Date(schedule.next_run_at));
+    } else {
+        document.getElementById('nextRunTime').textContent = 'Не запланирован';
+    }
+}
+
+// Переключение автобэкапа
+async function toggleAutoBackup(enabled) {
+    const settingsDiv = document.getElementById('autoBackupSettings');
+    settingsDiv.style.display = enabled ? 'block' : 'none';
+    await updateBackupSchedule({ enabled });
+}
+
+// Обновление видимости полей
+function updateFrequencyFields() {
+    const frequency = document.getElementById('backupFrequency').value;
+    const dayOfWeekField = document.getElementById('dayOfWeekField');
+    const dayOfMonthField = document.getElementById('dayOfMonthField');
+    
+    dayOfWeekField.style.display = 'none';
+    dayOfMonthField.style.display = 'none';
+    
+    if (frequency === 'weekly') {
+        dayOfWeekField.style.display = 'block';
+    } else if (frequency === 'monthly') {
+        dayOfMonthField.style.display = 'block';
+    }
+}
+
+// Сохранить настройки расписания
+async function saveBackupSchedule() {
+    const frequency = document.getElementById('backupFrequency').value;
+    const time = document.getElementById('backupTime').value;
+    const retentionDays = parseInt(document.getElementById('retentionDays').value);
+    
+    const data = {
+        frequency,
+        time_of_day: time,
+        retention_days: retentionDays
+    };
+    
+    if (frequency === 'weekly') {
+        data.day_of_week = parseInt(document.getElementById('dayOfWeek').value);
+        data.day_of_month = null;
+    } else if (frequency === 'monthly') {
+        data.day_of_month = parseInt(document.getElementById('dayOfMonth').value);
+        data.day_of_week = null;
+    } else {
+        data.day_of_week = null;
+        data.day_of_month = null;
+    }
+    
+    await updateBackupSchedule(data);
+}
+
+// Обновить расписание на сервере
+async function updateBackupSchedule(data) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/database/backup-schedule`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.status === 401) {
+            logout();
+            return;
+        }
+
+        if (response.ok) {
+            const schedule = await response.json();
+            displayBackupSchedule(schedule);
+            alert('Настройки автобэкапа успешно сохранены!');
         } else {
             const error = await response.json();
             alert(`Ошибка: ${error.detail}`);

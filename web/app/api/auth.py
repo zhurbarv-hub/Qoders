@@ -39,6 +39,10 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Обновить время последнего входа
+    user.last_login = datetime.now()
+    db.commit()
+    
     access_token = create_access_token(
         data={
             "sub": str(user.id),

@@ -101,9 +101,22 @@ async def get_deadlines(
     
     try:
         # Базовый запрос - LEFT JOIN по client_id (все дедлайны теперь используют client_id)
+        from ..models.cash_register import CashRegister
+        
         query = db.query(Deadline)\
             .outerjoin(User, Deadline.client_id == User.id)\
-            .outerjoin(DeadlineType, Deadline.deadline_type_id == DeadlineType.id)
+            .outerjoin(DeadlineType, Deadline.deadline_type_id == DeadlineType.id)\
+            .outerjoin(CashRegister, Deadline.cash_register_id == CashRegister.id)
+        
+        # Фильтр по статусу по умолчанию - только активные
+        if deadline_status:
+            query = query.filter(Deadline.status == deadline_status)
+        else:
+            # По умолчанию показываем только активные
+            query = query.filter(Deadline.status == 'active')
+        
+        # Примечание: фильтры по активности клиентов/касс убраны,
+        # так как дедлайны теперь физически удаляются при деактивации
         
         # Применение фильтров
         if client_id:
@@ -114,9 +127,6 @@ async def get_deadlines(
         
         if cash_register_id:
             query = query.filter(Deadline.cash_register_id == cash_register_id)
-        
-        if deadline_status:
-            query = query.filter(Deadline.status == deadline_status)
         
         if date_from:
             query = query.filter(Deadline.expiration_date >= date_from)

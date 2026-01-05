@@ -21,13 +21,13 @@ async def send_notification(bot, chat_id: int, message: str) -> bool:
     Args:
         bot: Экземпляр Telegram бота
         chat_id (int): ID чата получателя
-        message (str): Текст сообщения
+        message (str): Текст сообщения (поддерживает HTML разметку)
         
     Returns:
         bool: True если отправка успешна, False в случае ошибки
     """
     try:
-        await bot.send_message(chat_id=chat_id, text=message)
+        await bot.send_message(chat_id=chat_id, text=message, parse_mode='HTML')
         logger.info(f"✅ Уведомление отправлено пользователю {chat_id}")
         return True
     except Exception as e:
@@ -96,7 +96,7 @@ async def process_deadline_notifications(bot, days: int) -> Dict:
     
     try:
         # Получаем дедлайны, истекающие через указанное количество дней
-        deadlines = get_expiring_deadlines(days)
+        deadlines = await get_expiring_deadlines(days)
         stats['total_deadlines'] = len(deadlines)
         
         if not deadlines:

@@ -79,7 +79,7 @@
                                 <h2 class="mdl-card__title-text">📦 Всего копий</h2>
                             </div>
                             <div class="mdl-card__supporting-text">
-                                <div class="stat-value" id="totalBackups">-</div>
+                                <div class="stat-value" style="font-size: 20px;" id="totalBackups">-</div>
                             </div>
                         </div>
                     </div>
@@ -89,7 +89,7 @@
                                 <h2 class="mdl-card__title-text">💾 Общий размер</h2>
                             </div>
                             <div class="mdl-card__supporting-text">
-                                <div class="stat-value" id="totalSize">-</div>
+                                <div class="stat-value" style="font-size: 20px;" id="totalSize">-</div>
                             </div>
                         </div>
                     </div>
@@ -99,7 +99,111 @@
                                 <h2 class="mdl-card__title-text">📅 Последний бэкап</h2>
                             </div>
                             <div class="mdl-card__supporting-text">
-                                <div class="stat-value" id="lastBackup">-</div>
+                                <div class="stat-value" style="font-size: 20px;" id="lastBackup">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Настройка автоматического бэкапа -->
+                <div class="mdl-grid">
+                    <div class="mdl-cell mdl-cell--12-col">
+                        <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
+                            <div class="mdl-card__title" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                <h2 class="mdl-card__title-text">
+                                    <i class="material-icons" style="vertical-align: middle; margin-right: 8px;">schedule</i>
+                                    Автоматическое создание резервных копий
+                                </h2>
+                            </div>
+                            <div class="mdl-card__supporting-text" style="padding: 24px;">
+                                <div style="margin-bottom: 20px;">
+                                    <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="autoBackupEnabled">
+                                        <input type="checkbox" id="autoBackupEnabled" class="mdl-switch__input" onchange="toggleAutoBackup(this.checked)">
+                                        <span class="mdl-switch__label" style="font-size: 16px; font-weight: 500;">
+                                            Включить автоматические бэкапы
+                                        </span>
+                                    </label>
+                                    <div id="autoBackupStatus" style="margin-top: 8px; font-size: 14px; color: #666;">
+                                        Статус: Загрузка...
+                                    </div>
+                                </div>
+
+                                <div id="autoBackupSettings" style="display: none; margin-top: 24px; border-top: 1px solid #e0e0e0; padding-top: 24px;">
+                                    <div class="mdl-grid">
+                                        <!-- Частота -->
+                                        <div class="mdl-cell mdl-cell--6-col">
+                                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: #555;">
+                                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">repeat</i>
+                                                Частота
+                                            </label>
+                                            <select id="backupFrequency" class="mdl-textfield__input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" onchange="updateFrequencyFields()">
+                                                <option value="daily">Ежедневно</option>
+                                                <option value="weekly">Еженедельно</option>
+                                                <option value="monthly">Ежемесячно</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Время -->
+                                        <div class="mdl-cell mdl-cell--6-col">
+                                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: #555;">
+                                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">access_time</i>
+                                                Время
+                                            </label>
+                                            <input type="time" id="backupTime" class="mdl-textfield__input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" value="03:00">
+                                        </div>
+
+                                        <!-- День недели (для weekly) -->
+                                        <div class="mdl-cell mdl-cell--6-col" id="dayOfWeekField" style="display: none;">
+                                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: #555;">
+                                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">today</i>
+                                                День недели
+                                            </label>
+                                            <select id="dayOfWeek" class="mdl-textfield__input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                                                <option value="0">Понедельник</option>
+                                                <option value="1">Вторник</option>
+                                                <option value="2">Среда</option>
+                                                <option value="3">Четверг</option>
+                                                <option value="4">Пятница</option>
+                                                <option value="5">Суббота</option>
+                                                <option value="6">Воскресенье</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- День месяца (для monthly) -->
+                                        <div class="mdl-cell mdl-cell--6-col" id="dayOfMonthField" style="display: none;">
+                                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: #555;">
+                                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">event</i>
+                                                День месяца
+                                            </label>
+                                            <input type="number" id="dayOfMonth" class="mdl-textfield__input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" min="1" max="31" value="1">
+                                        </div>
+
+                                        <!-- Хранение -->
+                                        <div class="mdl-cell mdl-cell--6-col">
+                                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: #555;">
+                                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">delete_sweep</i>
+                                                Хранить бэкапы (дней)
+                                            </label>
+                                            <input type="number" id="retentionDays" class="mdl-textfield__input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" min="1" max="365" value="7">
+                                        </div>
+                                    </div>
+
+                                    <div style="margin-top: 24px; text-align: right;">
+                                        <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" onclick="saveBackupSchedule()">
+                                            <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">save</i>
+                                            Сохранить настройки
+                                        </button>
+                                    </div>
+
+                                    <div id="scheduleInfo" style="margin-top: 20px; padding: 12px; background: #f5f5f5; border-radius: 4px; font-size: 14px;">
+                                        <div style="margin-bottom: 4px;">
+                                            <strong>Последний запуск:</strong> <span id="lastRunTime">-</span>
+                                        </div>
+                                        <div>
+                                            <strong>Следующий запуск:</strong> <span id="nextRunTime">-</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -172,8 +276,24 @@
         </div>
     </dialog>
 
+    <!-- Модальное окно прогресса восстановления -->
+    <dialog class="mdl-dialog" id="restoreProgressDialog" style="min-width: 400px;">
+        <h4 class="mdl-dialog__title">🔄 Восстановление базы данных</h4>
+        <div class="mdl-dialog__content" style="text-align: center; padding: 30px;">
+            <p id="restoreProgressText" style="font-size: 16px; margin-bottom: 20px;">Подготовка к восстановлению...</p>
+            
+            <!-- Прогресс-бар -->
+            <div id="restoreProgress" class="mdl-progress mdl-js-progress mdl-progress__indeterminate" style="width: 100%;"></div>
+            
+            <p style="color: #999; font-size: 14px; margin-top: 20px;">
+                <i class="material-icons" style="vertical-align: middle; font-size: 18px;">info</i>
+                Пожалуйста, не закрывайте окно
+            </p>
+        </div>
+    </dialog>
+
     <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
-    <script src="/static/js/database-management.js?v=20251214193900"></script>
+    <script src="/static/js/database-management.js?v=20251220192800"></script>
 
     <style>
         .info-card {

@@ -32,6 +32,9 @@ class UserCreateByAdmin(UserBase):
     inn: Optional[str] = Field(None, min_length=10, max_length=12, description="ИНН (только для клиентов)")
     company_name: Optional[str] = Field(None, max_length=255, description="Название компании (для клиентов)")
     
+    # Telegram ID (для админов и менеджеров)
+    telegram_id: Optional[str] = Field(None, max_length=50, description="Telegram ID (для админов и менеджеров)")
+    
     # Настройки уведомлений (только для клиентов)
     notification_days: Optional[str] = Field("14,7,3", description="Дни до дедлайна для уведомлений")
     notifications_enabled: bool = Field(True, description="Включены ли уведомления")
@@ -60,12 +63,21 @@ class UserCreateByAdmin(UserBase):
         if values.get('role') == 'client' and not v:
             raise ValueError('Название компании обязательно для клиентов')
         return v
+    
+    @validator('telegram_id')
+    def validate_telegram_id(cls, v, values):
+        """Проверка обязательности Telegram ID для администраторов и менеджеров"""
+        role = values.get('role')
+        if role in ['admin', 'manager'] and not v:
+            raise ValueError('Telegram ID обязателен для администраторов и менеджеров')
+        return v
 
 
 class UserUpdate(BaseModel):
     """Схема для обновления пользователя"""
     email: Optional[EmailStr] = None
     full_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    role: Optional[str] = Field(None, pattern="^(client|manager|admin)$", description="Роль пользователя")
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     notes: Optional[str] = None
@@ -128,6 +140,7 @@ class UserResponse(BaseModel):
     is_active: bool
     registered_at: Optional[datetime] = None
     last_interaction: Optional[datetime] = None
+    last_login: Optional[datetime] = None  # Последний вход в систему
     created_at: datetime
     updated_at: datetime
     

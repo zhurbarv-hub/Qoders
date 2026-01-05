@@ -107,7 +107,7 @@ def _get_expiring_deadlines_fallback(days: int) -> List[Dict]:
             models.DeadlineType.type_name.label('deadline_type_name'),
             models.Deadline.expiration_date.label('expiration_date')
         ).join(
-            models.User, models.Deadline.user_id == models.User.id
+            models.User, models.Deadline.client_id == models.User.id
         ).join(
             models.DeadlineType, models.Deadline.deadline_type_id == models.DeadlineType.id
         ).filter(
@@ -211,10 +211,10 @@ def get_notification_recipients(deadline_id: int) -> List[Dict]:
             })
         
         # 3. Добавляем клиента, которому принадлежит дедлайн
-        if deadline.user_id:
+        if deadline.client_id:
             # Получаем пользователя-клиента
             client = db.query(models.User).filter(
-                models.User.id == deadline.user_id,
+                models.User.id == deadline.client_id,
                 models.User.role == 'client',
                 models.User.is_active == True,
                 models.User.notifications_enabled == True,
@@ -229,9 +229,9 @@ def get_notification_recipients(deadline_id: int) -> List[Dict]:
                 })
                 logger.debug(f"Добавлен клиент {client.id} ({client.company_name}) в список получателей")
             else:
-                logger.warning(f"Клиент для дедлайна {deadline_id} (user_id={deadline.user_id}) не найден или не настроен для уведомлений")
+                logger.warning(f"Клиент для дедлайна {deadline_id} (client_id={deadline.client_id}) не найден или не настроен для уведомлений")
         else:
-            logger.warning(f"Дедлайн {deadline_id} не привязан к клиенту (user_id отсутствует)")
+            logger.warning(f"Дедлайн {deadline_id} не привязан к клиенту (client_id отсутствует)")
             
         logger.debug(f"Найдено {len(recipients)} получателей для дедлайна {deadline_id}: "
                     f"{sum(1 for r in recipients if r['recipient_type'] == 'admin')} админов, "

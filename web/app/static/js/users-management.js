@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadUsers() {
     const tbody = document.getElementById('usersTableBody');
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">Загрузка...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #999;">Загрузка...</td></tr>';
     
     try {
         const params = new URLSearchParams({
@@ -134,7 +134,7 @@ async function loadUsers() {
         updatePagination(data.page, data.total_pages, data.total);
     } catch (error) {
         console.error('Ошибка:', error);
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #dc3545;">Ошибка загрузки данных</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #dc3545;">Ошибка загрузки данных</td></tr>';
     }
 }
 
@@ -144,7 +144,7 @@ function renderUsers(users) {
     const tbody = document.getElementById('usersTableBody');
     
     if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">Пользователи не найдены</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #999;">Пользователи не найдены</td></tr>';
         return;
     }
     
@@ -157,7 +157,7 @@ function renderUsers(users) {
             '<span style="color: #999;">Не подключен</span>';
         
         return `
-            <tr onclick="openUserDetails(${user.id})" style="cursor: pointer;">
+            <tr onclick="editUser(${user.id})" style="cursor: pointer;" onmouseenter="this.style.backgroundColor='#f5f5f5'" onmouseleave="this.style.backgroundColor=''">
                 <td>
                     <div style="font-weight: 500;">${displayName}</div>
                     ${user.inn ? `<div style="font-size: 12px; color: #666;">ИНН: ${user.inn}</div>` : ''}
@@ -167,16 +167,6 @@ function renderUsers(users) {
                 <td>${user.phone || '—'}</td>
                 <td>${telegramBadge}</td>
                 <td>${statusBadge}</td>
-                <td onclick="event.stopPropagation()">
-                    <button class="action-button secondary" onclick="editUser(${user.id})" title="Редактировать">
-                        <i class="material-icons" style="font-size: 18px;">edit</i>
-                    </button>
-                    ${currentUser.role === 'admin' ? `
-                        <button class="action-button secondary" onclick="changeUserPassword(${user.id})" title="Сменить пароль">
-                            <i class="material-icons" style="font-size: 18px;">vpn_key</i>
-                        </button>
-                    ` : ''}
-                </td>
             </tr>
         `;
     }).join('');
@@ -279,6 +269,7 @@ async function editUser(userId) {
         document.getElementById('userFullName').value = user.full_name || '';
         document.getElementById('userEmail').value = user.email || '';
         document.getElementById('userPhone').value = user.phone || '';
+        document.getElementById('userTelegramId').value = user.telegram_id || '';
         document.getElementById('userIsActive').value = user.is_active ? 'true' : 'false';
         document.getElementById('userCompanyName').value = user.company_name || '';
         document.getElementById('userInn').value = user.inn || '';
@@ -312,17 +303,26 @@ async function editUser(userId) {
 function handleRoleChange() {
     const role = document.getElementById('userRole').value;
     const clientFields = document.getElementById('clientFields');
+    const telegramIdField = document.getElementById('telegramIdField');
     const companyNameInput = document.getElementById('userCompanyName');
     const innInput = document.getElementById('userInn');
     
+    console.log('handleRoleChange called, role:', role);
+    console.log('telegramIdField element:', telegramIdField);
+    
     if (role === 'client') {
         clientFields.style.display = 'block';
+        telegramIdField.style.display = 'none';
         companyNameInput.setAttribute('required', 'required');
         innInput.setAttribute('required', 'required');
+        console.log('Client role - hiding telegram field');
     } else {
+        // Для админов и менеджеров
         clientFields.style.display = 'none';
+        telegramIdField.style.display = 'block';
         companyNameInput.removeAttribute('required');
         innInput.removeAttribute('required');
+        console.log('Admin/Manager role - showing telegram field');
     }
 }
 
@@ -358,6 +358,12 @@ async function saveUser() {
         address: document.getElementById('userAddress').value.trim() || null,
         notes: document.getElementById('userNotes').value.trim() || null
     };
+    
+    // Telegram ID для админов и менеджеров
+    if (role === 'admin' || role === 'manager') {
+        const telegramId = document.getElementById('userTelegramId').value.trim();
+        userData.telegram_id = telegramId || null;
+    }
     
     // Добавление username только при создании (не при редактировании)
     if (!userId) {

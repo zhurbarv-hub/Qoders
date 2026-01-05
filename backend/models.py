@@ -370,6 +370,74 @@ class Deadline(Base):
 # End of deprecated Contact model
 
 
+class SupportRequest(Base):
+    """
+    Client support requests submitted via Telegram bot
+    
+    Attributes:
+        id: Unique request identifier
+        client_id: Reference to users.id (client who created request)
+        subject: Request subject/title
+        message: Detailed request description
+        contact_phone: Contact phone number for callback
+        status: Request status (new, in_progress, resolved, closed)
+        resolution_notes: Admin notes on resolution
+        created_at: Request creation timestamp
+        updated_at: Last update timestamp
+        resolved_at: Resolution timestamp
+    
+    Relationships:
+        client: Reference to client user who created request
+    """
+    __tablename__ = "support_requests"
+    
+    # Primary Key
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # Foreign Key
+    client_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Request Information
+    subject = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    contact_phone = Column(String(50), nullable=False)
+    status = Column(String(20), nullable=False, default='new', index=True)
+    resolution_notes = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    resolved_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    client = relationship("User", foreign_keys=[client_id])
+    
+    # Composite Indexes
+    __table_args__ = (
+        Index('ix_support_requests_status_created', 'status', 'created_at'),
+        Index('ix_support_requests_client_created', 'client_id', 'created_at'),
+        CheckConstraint("status IN ('new', 'in_progress', 'resolved', 'closed')", name='check_support_request_status'),
+    )
+    
+    def __repr__(self):
+        return f"<SupportRequest(id={self.id}, client_id={self.client_id}, status='{self.status}', subject='{self.subject[:30]}...')>"
+    
+    def to_dict(self):
+        """Convert model instance to dictionary"""
+        return {
+            'id': self.id,
+            'client_id': self.client_id,
+            'subject': self.subject,
+            'message': self.message,
+            'contact_phone': self.contact_phone,
+            'status': self.status,
+            'resolution_notes': self.resolution_notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'resolved_at': self.resolved_at.isoformat() if self.resolved_at else None
+        }
+
+
 class NotificationLog(Base):
     """
     Audit trail for all sent notifications

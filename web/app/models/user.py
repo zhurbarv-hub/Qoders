@@ -74,6 +74,7 @@ class User(Base):
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     registered_at = Column(DateTime, default=func.now())
     last_interaction = Column(DateTime, nullable=True)
+    last_login = Column(DateTime, nullable=True)  # Последний вход в систему
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     

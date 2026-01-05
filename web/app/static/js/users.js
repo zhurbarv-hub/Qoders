@@ -69,19 +69,19 @@ function renderUsersTable(users) {
             </label>
         </div>
         
-        <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
+        <div class="mdl-card mdl-shadow--2dp" style="width: 100%; overflow: hidden;">
             <div class="mdl-card__supporting-text" style="padding: 0; overflow-x: auto;">
-                <table class="mdl-data-table mdl-js-data-table" style="width: 100%;">
+                <table class="mdl-data-table mdl-js-data-table" style="width: 100%; min-width: 900px;">
                     <thead>
                         <tr>
-                            <th class="mdl-data-table__cell--non-numeric">Компания</th>
-                            <th class="mdl-data-table__cell--non-numeric">ИНН</th>
-                            <th class="mdl-data-table__cell--non-numeric">Контактное лицо</th>
-                            <th class="mdl-data-table__cell--non-numeric">Email</th>
-                            <th class="mdl-data-table__cell--non-numeric">Телефон</th>
-                            <th class="mdl-data-table__cell--non-numeric">Telegram</th>
-                            <th class="mdl-data-table__cell--non-numeric">Статус</th>
-                            <th class="mdl-data-table__cell--non-numeric">Действия</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 180px;">Компания</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 100px;">ИНН</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 150px;">Контактное лицо</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 180px;">Email</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 120px;">Телефон</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 100px; text-align: center;">Telegram</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 90px; text-align: center;">Статус</th>
+                            <th class="mdl-data-table__cell--non-numeric" style="min-width: 80px; text-align: center;">Действия</th>
                         </tr>
                     </thead>
                     <tbody id="users-table-body">
@@ -93,37 +93,33 @@ function renderUsersTable(users) {
                             </tr>
                         ` : users.map(user => `
                             <tr>
-                                <td class="mdl-data-table__cell--non-numeric">${user.company_name || '-'}</td>
+                                <td class="mdl-data-table__cell--non-numeric" style="white-space: normal; word-break: break-word;">${user.company_name || '-'}</td>
                                 <td class="mdl-data-table__cell--non-numeric">${user.inn || '-'}</td>
-                                <td class="mdl-data-table__cell--non-numeric">${user.full_name || '-'}</td>
-                                <td class="mdl-data-table__cell--non-numeric">${user.email || '-'}</td>
+                                <td class="mdl-data-table__cell--non-numeric" style="white-space: normal; word-break: break-word;">${user.full_name || '-'}</td>
+                                <td class="mdl-data-table__cell--non-numeric" style="white-space: normal; word-break: break-word;">${user.email || '-'}</td>
                                 <td class="mdl-data-table__cell--non-numeric">${user.phone || '-'}</td>
-                                <td class="mdl-data-table__cell--non-numeric">
-                                    ${user.telegram_id ? '✅ Подключен' : '❌ Не подключен'}
+                                <td class="mdl-data-table__cell--non-numeric" style="text-align: center;">
+                                    ${user.telegram_id ? '<span style="color: #4CAF50;">✅ Подключен</span>' : '<span style="color: #999;">❌ Не подключен</span>'}
                                 </td>
-                                <td class="mdl-data-table__cell--non-numeric">
-                                    <span style="color: ${user.is_active ? '#4CAF50' : '#999'};">
+                                <td class="mdl-data-table__cell--non-numeric" style="text-align: center;">
+                                    <span style="color: ${user.is_active ? '#4CAF50' : '#999'}; font-weight: 500;">
                                         ${user.is_active ? 'Активен' : 'Неактивен'}
                                     </span>
                                 </td>
-                                <td class="mdl-data-table__cell--non-numeric">
+                                <td class="mdl-data-table__cell--non-numeric" style="text-align: center;">
                                     ${user.is_active ? `
                                         <button class="mdl-button mdl-js-button mdl-button--icon" 
-                                                onclick="toggleUserStatus(${user.id}, '${(user.company_name || user.full_name || '').replace(/'/g, "\\'")}')"
+                                                onclick="toggleUserStatus(${user.id}, '${(user.company_name || user.full_name || '').replace(/'/g, "\\'")}')" 
                                                 title="Деактивировать" style="color: #ff9800;">
                                             <i class="material-icons">block</i>
                                         </button>
                                     ` : `
                                         <button class="mdl-button mdl-js-button mdl-button--icon" 
-                                                onclick="toggleUserStatus(${user.id}, '${(user.company_name || user.full_name || '').replace(/'/g, "\\'")}')"
+                                                onclick="toggleUserStatus(${user.id}, '${(user.company_name || user.full_name || '').replace(/'/g, "\\'")}')" 
                                                 title="Активировать" style="color: #4CAF50;">
                                             <i class="material-icons">check_circle</i>
                                         </button>
                                     `}
-                                    <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteUser(${user.id}, '${(user.company_name || user.full_name || '').replace(/'/g, "\\'")}')"
-                                            title="Удалить" style="color: #f44336;" ${!user.is_active ? 'disabled' : ''}>
-                                        <i class="material-icons">delete</i>
-                                    </button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -340,6 +336,13 @@ async function submitUserForm(event, mode, userId) {
         role: 'client',
         is_active: true
     };
+    
+    // Для создания нового клиента добавляем username (генерируем из ИНН)
+    if (mode === 'add') {
+        const inn = document.getElementById('inn').value;
+        // Генерируем username из ИНН: client_ + ИНН
+        formData.username = 'client_' + inn;
+    }
     
     const token = localStorage.getItem('access_token');
     const url = mode === 'edit' ? `${API_BASE_URL}/users/${userId}` : `${API_BASE_URL}/users`;

@@ -4,12 +4,13 @@ API endpoints для дашборда (статистика)
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, or_
 from datetime import date, timedelta
 
 from ..dependencies import get_db
 from ..models.user import User
 from ..models.client import Deadline, DeadlineType
+from ..models.cash_register import CashRegister
 from ..models.client_schemas import DashboardStats
 from ..services.auth_service import decode_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -90,11 +91,26 @@ async def get_dashboard_stats(
         )
     ).scalar()
     
+    # Общее количество касс активных клиентов
+    # Подсчитываем активные кассы у активных клиентов
+    total_cash_registers = db.query(func.count(CashRegister.id)).join(
+        User, CashRegister.client_id == User.id
+    ).filter(
+        and_(
+            CashRegister.is_active == True,
+            User.is_active == True,
+            User.role == 'client'
+        )
+    ).scalar()
+    
+    print(f"[DEBUG] Dashboard stats: total_cash_registers={total_cash_registers}")
+    
     return DashboardStats(
         total_clients=total_clients or 0,
         active_clients=active_clients or 0,
         total_deadlines=total_deadlines or 0,
         active_deadlines=active_deadlines or 0,
+        total_cash_registers=total_cash_registers or 0,
         status_green=status_green or 0,
         status_yellow=status_yellow or 0,
         status_red=status_red or 0,

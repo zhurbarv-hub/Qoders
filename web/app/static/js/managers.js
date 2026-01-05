@@ -67,12 +67,11 @@ function renderManagersTable(users) {
                         <th>Роль</th>
                         <th>Статус</th>
                         <th>Последний вход</th>
-                        <th>Действия</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${users.length > 0 ? users.map(user => `
-                        <tr>
+                        <tr data-user-id="${user.id}" style="cursor: pointer;" class="manager-row">
                             <td><strong>${user.full_name || '-'}</strong></td>
                             <td>${user.email || '-'}</td>
                             <td>${user.phone || '-'}</td>
@@ -93,21 +92,10 @@ function renderManagersTable(users) {
                                 </span>
                             </td>
                             <td>${user.last_login ? formatDateTime(user.last_login) : 'Никогда'}</td>
-                            <td>
-                                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="viewManager(${user.id})">
-                                    <i class="material-icons">visibility</i>
-                                </button>
-                                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="editManager(${user.id})">
-                                    <i class="material-icons">edit</i>
-                                </button>
-                                <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteManager(${user.id})">
-                                    <i class="material-icons">delete</i>
-                                </button>
-                            </td>
                         </tr>
                     `).join('') : `
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 20px;">
+                            <td colspan="6" style="text-align: center; padding: 20px;">
                                 Пользователи отсутствуют
                             </td>
                         </tr>
@@ -119,6 +107,26 @@ function renderManagersTable(users) {
     `;
     
     managersSection.innerHTML = tableHTML;
+    
+    // Добавляем обработчики кликов на строки
+    setTimeout(() => {
+        const managerRows = document.querySelectorAll('.manager-row');
+        managerRows.forEach(row => {
+            const userId = parseInt(row.getAttribute('data-user-id'));
+            
+            row.addEventListener('click', function() {
+                editManager(userId);
+            });
+            
+            row.addEventListener('mouseenter', function() {
+                row.style.backgroundColor = '#f5f5f5';
+            });
+            
+            row.addEventListener('mouseleave', function() {
+                row.style.backgroundColor = '';
+            });
+        });
+    }, 100);
     
     // Обновляем MDL компоненты
     if (typeof componentHandler !== 'undefined') {
@@ -312,6 +320,12 @@ function createManagerModal(mode, user = {}) {
                         <label class="mdl-textfield__label" for="phone">Телефон</label>
                     </div>
                     
+                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+                        <input class="mdl-textfield__input" type="text" id="telegram_id" value="${user.telegram_id || ''}" ${isView ? 'disabled' : ''} pattern="[0-9]+" title="Только цифры">
+                        <label class="mdl-textfield__label" for="telegram_id">Telegram ID ${!isView ? '*' : ''}</label>
+                        <span class="mdl-textfield__error">Введите числовой Telegram ID</span>
+                    </div>
+                    
                     ${!isView ? `
                     <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
                         <input class="mdl-textfield__input" type="password" id="password" ${isAdd ? 'required' : ''}>
@@ -348,6 +362,9 @@ function createManagerModal(mode, user = {}) {
                     
                     <div class="modal-footer">
                         <button type="button" class="mdl-button" onclick="closeManagerModal(this)">Закрыть</button>
+                        ${isEdit ? `<button type="button" class="mdl-button" style="color: #d32f2f; margin-right: auto;" onclick="showDeleteConfirmation(${user.id}, '${user.full_name}')">
+                            <i class="material-icons" style="font-size: 18px; vertical-align: middle;">delete</i> Удалить
+                        </button>` : ''}
                         ${!isView ? `<button type="submit" class="mdl-button mdl-button--raised mdl-button--colored">${isEdit ? 'Сохранить' : 'Создать'}</button>` : ''}
                     </div>
                 </form>
@@ -377,6 +394,21 @@ async function submitManagerForm(event, mode, userId) {
         role: document.getElementById('role').value,
         is_active: document.getElementById('is_active').checked
     };
+    
+    // Проверяем Telegram ID - обязателен для админов и менеджеров
+    const telegramIdField = document.getElementById('telegram_id');
+    const telegramId = telegramIdField ? telegramIdField.value.trim() : '';
+    
+    if ((formData.role === 'admin' || formData.role === 'manager') && !telegramId) {
+        alert('Ошибка: Telegram ID обязателен для администраторов и менеджеров');
+        telegramIdField.focus();
+        return;
+    }
+    
+    // Добавляем Telegram ID если указан
+    if (telegramId) {
+        formData.telegram_id = telegramId;
+    }
     
     // Добавляем username только при создании
     if (mode === 'add') {
@@ -428,5 +460,126 @@ function closeManagerModal(element) {
     if (overlay) {
         overlay.querySelector('.modal').classList.remove('show');
         setTimeout(() => overlay.remove(), 300);
+    }
+}
+
+/**
+ * Показать диалог подтверждения удаления
+ */
+function showDeleteConfirmation(userId, userName) {
+    const modalDiv = document.createElement('div');
+    modalDiv.className = 'modal-overlay';
+    modalDiv.innerHTML = `
+        <div class="modal" style="max-width: 450px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);">
+                <h3><i class="material-icons" style="vertical-align: middle; margin-right: 8px;">warning</i> Подтверждение удаления</h3>
+                <button class="close-btn" onclick="closeDeleteConfirmation(this)">
+                    <i class="material-icons">close</i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; font-size: 16px;">
+                    Вы действительно хотите удалить пользователя:<br>
+                    <strong style="color: #d32f2f;">${userName}</strong>?
+                </p>
+                <p style="margin-bottom: 20px; color: #666; font-size: 14px;">
+                    Это действие нельзя отменить. Для подтверждения введите ваш пароль:
+                </p>
+                <form id="deleteConfirmForm" onsubmit="confirmDeleteManager(event, ${userId})">
+                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+                        <input class="mdl-textfield__input" type="password" id="delete_password" required autocomplete="current-password">
+                        <label class="mdl-textfield__label" for="delete_password">Введите пароль</label>
+                    </div>
+                    <div class="modal-footer" style="margin-top: 20px;">
+                        <button type="button" class="mdl-button" onclick="closeDeleteConfirmation(this)">Отмена</button>
+                        <button type="submit" class="mdl-button mdl-button--raised" style="background-color: #d32f2f; color: white;">
+                            <i class="material-icons" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">delete</i>
+                            Удалить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modalDiv);
+    setTimeout(() => {
+        modalDiv.classList.add('show');
+        if (typeof componentHandler !== 'undefined') {
+            componentHandler.upgradeElements(modalDiv.querySelectorAll('.mdl-textfield'));
+        }
+        // Фокус на поле пароля
+        document.getElementById('delete_password').focus();
+    }, 10);
+}
+
+/**
+ * Закрыть диалог подтверждения
+ */
+function closeDeleteConfirmation(element) {
+    const overlay = element.closest('.modal-overlay');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 300);
+    }
+}
+
+/**
+ * Подтверждение удаления с проверкой пароля
+ */
+async function confirmDeleteManager(event, userId) {
+    event.preventDefault();
+    
+    const password = document.getElementById('delete_password').value;
+    const token = localStorage.getItem('access_token');
+    
+    try {
+        // Сначала проверяем пароль через API авторизации
+        const currentUserData = JSON.parse(atob(token.split('.')[1]));
+        const username = currentUserData.username || currentUserData.sub;
+        
+        const authResponse = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            })
+        });
+        
+        if (!authResponse.ok) {
+            throw new Error('Неверный пароль');
+        }
+        
+        // Пароль верен, удаляем пользователя
+        const deleteResponse = await fetch(`${API_BASE_URL}/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!deleteResponse.ok) {
+            const error = await deleteResponse.json();
+            throw new Error(error.detail || 'Ошибка удаления');
+        }
+        
+        // Закрываем все модальные окна
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.remove();
+        });
+        
+        alert('Пользователь успешно удалён');
+        loadManagersData();
+        
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Ошибка: ' + error.message);
+        // Очищаем поле пароля
+        document.getElementById('delete_password').value = '';
+        document.getElementById('delete_password').focus();
     }
 }

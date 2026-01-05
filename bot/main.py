@@ -16,7 +16,7 @@ from bot.middlewares.logging import LoggingMiddleware
 # Импорт обработчиков
 from bot.handlers import common, admin, deadlines, registration
 from bot.handlers import settings as settings_handler
-from bot.handlers import search, export
+from bot.handlers import search, export, client_buttons
 
 from bot.scheduler import setup_scheduler
 from backend.database import SessionLocal
@@ -144,6 +144,9 @@ def register_handlers(dp: Dispatcher):
     # 2. Регистрация клиентов (обработка FSM состояний)
     dp.include_router(registration.router)           # Авторизация клиентов
     
+    # 3. Кнопки для клиентов (обработка кнопок клавиатуры)
+    dp.include_router(client_buttons.router)         # Помощь, Мои дедлайны
+    
     logger.info("✅ Обработчики команд зарегистрированы:")
     logger.info("   - common (общие команды)")
     logger.info("   - admin (статистика, проверки)")
@@ -151,6 +154,7 @@ def register_handlers(dp: Dispatcher):
     logger.info("   - search (поиск)")
     logger.info("   - settings (настройки)")
     logger.info("   - export (экспорт данных)")
+    logger.info("   - client_buttons (кнопки клиентов)")
 
 
 async def main():
