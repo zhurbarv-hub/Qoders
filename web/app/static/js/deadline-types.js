@@ -59,7 +59,8 @@ function renderDeadlineTypesTable(types) {
             ` : ''}
         </div>
         <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
-            <table class="mdl-data-table mdl-js-data-table" style="width: 100%;">
+            <div class="table-wrapper">
+                <table class="mdl-data-table mdl-js-data-table">
                 <thead>
                     <tr>
                         <th class="mdl-data-table__cell--non-numeric">Название</th>
@@ -78,9 +79,7 @@ function renderDeadlineTypesTable(types) {
                         <tr data-type-id="${type.id}">
                             <td class="mdl-data-table__cell--non-numeric"><strong>${displayName}</strong></td>
                             <td>
-                                <span style="background: ${type.is_active ? '#d4edda' : '#f8d7da'}; 
-                                             color: ${type.is_active ? '#155724' : '#721c24'}; 
-                                             padding: 4px 8px; border-radius: 4px;">
+                                <span class="status-pill ${type.is_active ? 'status-pill--success' : 'status-pill--muted'}">
                                     ${type.is_active ? 'Активен' : 'Неактивен'}
                                 </span>
                             </td>
@@ -104,7 +103,8 @@ function renderDeadlineTypesTable(types) {
                         </tr>
                     `}
                 </tbody>
-            </table>
+                </table>
+            </div>
         </div>
         <div id="deadlineTypesPagination" style="margin-top: 20px; text-align: center;"></div>
     `;

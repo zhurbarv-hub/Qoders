@@ -9,6 +9,7 @@ if (typeof API_BASE_URL === 'undefined') {
 
 const deadlinesSection = document.getElementById('deadlines-section');
 let allDeadlines = []; // Храним все дедлайны для фильтрации
+let currentPageSize = 20; // По умолчанию 20 записей
 let currentFilters = {
     client: '',
     type: '',
@@ -24,7 +25,7 @@ async function loadDeadlinesData() {
         const token = localStorage.getItem('access_token');
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         
-        let url = `${API_BASE_URL}/deadlines?page=1&page_size=50`;
+        let url = `${API_BASE_URL}/deadlines?page=1&page_size=1000`; // Загружаем все для клиентской фильтрации
         
         // Для клиентов показываем только их дедлайны
         if (user.role === 'client') {
@@ -93,6 +94,12 @@ function renderDeadlinesTable(deadlines) {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAdmin = ['admin', 'manager'].includes(user.role);
     
+    // Ограничиваем количество отображаемых записей
+    const totalDeadlines = deadlines.length;
+    const displayDeadlines = deadlines.slice(0, currentPageSize);
+    
+    console.log(`Отображаем ${displayDeadlines.length} из ${totalDeadlines} дедлайнов`);
+    
     // Создаем уникальные списки для фильтров
     const uniqueClients = [...new Set(allDeadlines.map(d => d.client?.company_name || d.client?.name).filter(Boolean))];
     const uniqueTypes = [...new Set(allDeadlines.map(d => d.deadline_type?.name || d.deadline_type?.type_name).filter(Boolean))];
@@ -112,59 +119,110 @@ function renderDeadlinesTable(deadlines) {
         </div>
         
         <!-- Панель фильтров -->
-        <div class="mdl-card mdl-shadow--2dp" style="width: 100%; padding: 20px; margin-bottom: 20px;">
-            <h4 style="margin-top: 0;">🔍 Фильтры</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                ${isAdmin ? `
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Клиент:</label>
-                    <select id="filterClient" class="mdl-textfield__input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="applyFilters()">
-                        <option value="">Все клиенты</option>
-                        ${uniqueClients.map(client => `<option value="${client}">${client}</option>`).join('')}
-                    </select>
+        <div class="mdl-card mdl-shadow--4dp" style="width: 100%; margin-bottom: 24px; border-radius: 12px; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; color: white;">
+                <h4 style="margin: 0; font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 8px;">
+                    <i class="material-icons" style="font-size: 24px;">filter_alt</i>
+                    Фильтры и настройки
+                </h4>
+            </div>
+            <div style="padding: 24px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                    ${isAdmin ? `
+                    <div>
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #555; font-size: 13px;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">business</i>
+                            Клиент
+                        </label>
+                        <select id="filterClient" style="width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;" 
+                                onchange="applyFilters()"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="">Все клиенты</option>
+                            ${uniqueClients.map(client => `<option value="${client}">${client}</option>`).join('')}
+                        </select>
+                    </div>
+                    ` : ''}
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #555; font-size: 13px;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">category</i>
+                            Тип услуги
+                        </label>
+                        <select id="filterType" style="width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;"
+                                onchange="applyFilters()"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="">Все типы</option>
+                            ${uniqueTypes.map(type => `<option value="${type}">${type}</option>`).join('')}
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #555; font-size: 13px;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">schedule</i>
+                            Осталось дней
+                        </label>
+                        <select id="filterDays" style="width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;"
+                                onchange="applyFilters()"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="all">Все</option>
+                            <option value="expired">Просрочено (< 0)</option>
+                            <option value="urgent">Срочно (0-7 дн.)</option>
+                            <option value="soon">Скоро (8-30 дн.)</option>
+                            <option value="normal">Активно (> 30 дн.)</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #555; font-size: 13px;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">check_circle</i>
+                            Статус
+                        </label>
+                        <select id="filterStatus" style="width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;"
+                                onchange="applyFilters()"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="all">Все</option>
+                            <option value="Просрочено">Просрочено</option>
+                            <option value="Срочно">Срочно</option>
+                            <option value="Скоро">Скоро</option>
+                            <option value="Активно">Активно</option>
+                        </select>
+                    </div>
                 </div>
-                ` : ''}
                 
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Тип услуги:</label>
-                    <select id="filterType" class="mdl-textfield__input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="applyFilters()">
-                        <option value="">Все типы</option>
-                        ${uniqueTypes.map(type => `<option value="${type}">${type}</option>`).join('')}
-                    </select>
-                </div>
-                
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Осталось дней:</label>
-                    <select id="filterDays" class="mdl-textfield__input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="applyFilters()">
-                        <option value="all">Все</option>
-                        <option value="expired">Просрочено (< 0)</option>
-                        <option value="urgent">Срочно (0-7 дн.)</option>
-                        <option value="soon">Скоро (8-30 дн.)</option>
-                        <option value="normal">Активно (> 30 дн.)</option>
-                    </select>
-                </div>
-                
-                <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Статус:</label>
-                    <select id="filterStatus" class="mdl-textfield__input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="applyFilters()">
-                        <option value="all">Все</option>
-                        <option value="Просрочено">Просрочено</option>
-                        <option value="Срочно">Срочно</option>
-                        <option value="Скоро">Скоро</option>
-                        <option value="Активно">Активно</option>
-                    </select>
-                </div>
-                
-                <div style="align-self: end;">
-                    <button class="mdl-button mdl-js-button mdl-button--raised" onclick="resetFilters()">
-                        ✖ Сбросить
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <button onclick="resetFilters()" 
+                            style="padding: 10px 20px; background: white; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; color: #555; transition: all 0.3s; display: flex; align-items: center; gap: 6px;"
+                            onmouseover="this.style.background='#f5f5f5'; this.style.borderColor='#667eea';"
+                            onmouseout="this.style.background='white'; this.style.borderColor='#e0e0e0';">
+                        <i class="material-icons" style="font-size: 18px;">refresh</i>
+                        Сбросить фильтры
                     </button>
+                    
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label style="font-weight: 500; color: #555; font-size: 14px;">
+                            <i class="material-icons" style="font-size: 18px; vertical-align: middle; margin-right: 4px; color: #667eea;">view_list</i>
+                            Показывать по:
+                        </label>
+                        <select id="pageSizeSelect" style="padding: 10px 14px; border: 2px solid #667eea; border-radius: 8px; font-size: 14px; font-weight: 500; background: white; cursor: pointer; color: #667eea; transition: all 0.3s; box-sizing: border-box;"
+                                onchange="changePageSize()"
+                                onfocus="this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.2)'"
+                                onblur="this.style.boxShadow='none'">
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
         
         <div class="mdl-card mdl-shadow--2dp" style="width: 100%;">
-            <table class="mdl-data-table mdl-js-data-table" style="width: 100%;">
+            <div class="table-wrapper">
+                <table class="mdl-data-table mdl-js-data-table" style="min-width: 860px;">
                 <thead>
                     <tr>
                         ${isAdmin ? '<th class="mdl-data-table__cell--non-numeric">Клиент</th>' : ''}
@@ -177,7 +235,7 @@ function renderDeadlinesTable(deadlines) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${deadlines.length > 0 ? deadlines.map((deadline, idx) => {
+                    ${displayDeadlines.length > 0 ? displayDeadlines.map((deadline, idx) => {
                         const daysLeft = deadline.days_until_expiration;
                         const status = getDeadlineStatus(daysLeft);
                         
@@ -196,11 +254,15 @@ function renderDeadlinesTable(deadlines) {
                                 <td>${formatDate(deadline.expiration_date)}</td>
                                 <td style="color: ${status.color}">${daysLeft}</td>
                                 <td>
-                                    <span style="background: ${status.bg}; color: ${status.color}; padding: 4px 8px; border-radius: 4px;">
+                                    <span class="status-pill ${status.className}">
                                         ${status.label}
                                     </span>
                                 </td>
-                                <td>${deadline.notification_enabled ? '✅ Включены' : '❌ Отключены'}</td>
+                                <td>
+                                    <span class="status-pill ${deadline.notification_enabled ? 'status-pill--success' : 'status-pill--muted'}">
+                                        ${deadline.notification_enabled ? 'Включены' : 'Отключены'}
+                                    </span>
+                                </td>
                                 ${isAdmin ? `
                                 <td>
                                     <button class="mdl-button mdl-js-button mdl-button--icon" onclick="deleteDeadline(${deadline.id})">
@@ -209,7 +271,7 @@ function renderDeadlinesTable(deadlines) {
                                 </td>
                                 ` : ''}
                             </tr>
-                        `;
+                        `;  
                     }).join('') : `
                         <tr>
                             <td colspan="${isAdmin ? '7' : '5'}" style="text-align: center; padding: 20px;">
@@ -219,11 +281,22 @@ function renderDeadlinesTable(deadlines) {
                     `}
                 </tbody>
             </table>
+            </div>
         </div>
-        <div id="deadlinesPagination" style="margin-top: 20px; text-align: center;"></div>
+        <div id="deadlinesPagination" style="margin-top: 20px; text-align: center;">
+            <p>Показано <strong>${displayDeadlines.length}</strong> из <strong>${totalDeadlines}</strong> дедлайнов</p>
+        </div>
     `;
     
     deadlinesSection.innerHTML = tableHTML;
+    
+    // Устанавливаем выбранное значение размера страницы
+    setTimeout(() => {
+        const pageSizeSelect = document.getElementById('pageSizeSelect');
+        if (pageSizeSelect) {
+            pageSizeSelect.value = currentPageSize.toString();
+        }
+    }, 10);
     
     // Обновляем MDL компоненты
     if (typeof componentHandler !== 'undefined') {
@@ -264,13 +337,13 @@ function calculateDaysLeft(expiryDate) {
  */
 function getDeadlineStatus(daysLeft) {
     if (daysLeft < 0) {
-        return { label: 'Просрочено', color: '#dc3545', bg: '#f8d7da' };
+        return { label: 'Просрочено', color: '#dc3545', className: 'status-pill--danger' };
     } else if (daysLeft <= 7) {
-        return { label: 'Срочно', color: '#ff6b6b', bg: '#ffe0e0' };
+        return { label: 'Срочно', color: '#ff6b6b', className: 'status-pill--danger' };
     } else if (daysLeft <= 30) {
-        return { label: 'Скоро', color: '#ffa500', bg: '#fff3cd' };
+        return { label: 'Скоро', color: '#ffa500', className: 'status-pill--warning' };
     } else {
-        return { label: 'Активно', color: '#28a745', bg: '#d4edda' };
+        return { label: 'Активно', color: '#28a745', className: 'status-pill--success' };
     }
 }
 
@@ -380,54 +453,130 @@ function createDeadlineModal(mode, deadline = {}) {
     const modalDiv = document.createElement('div');
     modalDiv.className = 'modal-overlay';
     modalDiv.innerHTML = `
-        <div class="modal">
-            <div class="modal-header">
-                <h3>${title}</h3>
+        <div class="modal" style="width: 600px; max-width: 90vw; border-radius: 12px; padding: 0; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <h3 style="margin: 0; font-size: 20px; font-weight: 500;">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 8px; font-size: 24px;">event</i>
+                    ${title}
+                </h3>
                 <button class="close-btn" onclick="closeDeadlineModal(this)">
                     <i class="material-icons">close</i>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
                 <form id="deadlineForm" onsubmit="submitDeadlineForm(event, '${mode}', ${deadline.id || 'null'})">
-                    <div class="form-group">
-                        <label for="client_id">Клиент *</label>
-                        <select id="client_id" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">business</i>
+                            Клиент *
+                        </label>
+                        <select id="client_id" required
+                                style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
                             <option value="">Выберите клиента</option>
                         </select>
                     </div>
                     
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label for="deadline_type_id">Тип услуги *</label>
-                        <select id="deadline_type_id" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">category</i>
+                            Тип услуги *
+                        </label>
+                        <select id="deadline_type_id" required 
+                                style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
                             <option value="">Выберите тип услуги</option>
                         </select>
                     </div>
                     
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label for="expiration_date">Дата истечения *</label>
-                        <input type="date" id="expiration_date" value="${deadline.expiration_date || ''}" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">computer</i>
+                            Кассовый аппарат
+                        </label>
+                        <select id="cash_register_id" 
+                                style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; transition: all 0.3s; cursor: pointer; box-sizing: border-box;" 
+                                onchange="updateCashRegisterModelField()"
+                                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                            <option value="">Общий дедлайн (не привязан к кассе)</option>
+                        </select>
                     </div>
                     
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label for="notify_days_before">Уведомлять за (дней) *</label>
-                        <input type="number" id="notify_days_before" value="${deadline.notify_days_before || 7}" min="1" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">devices</i>
+                            Модель ККТ
+                        </label>
+                        <input type="text" id="cash_register_model" maxlength="100" 
+                               value="${deadline.cash_register_model || ''}" 
+                               style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                               placeholder="Автоматически заполняется при выборе кассы"
+                               onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                               onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        <small style="display: block; margin-top: 4px; font-size: 12px; color: #666;">Можно указать вручную для общих дедлайнов</small>
                     </div>
                     
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label>
-                            <input type="checkbox" id="notification_enabled" ${deadline.notification_enabled !== false ? 'checked' : ''}>
-                            <span>Включить уведомления</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">event</i>
+                                Дата истечения *
+                            </label>
+                            <input type="date" id="expiration_date" required 
+                                   value="${deadline.expiration_date || ''}" 
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                                <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">notifications</i>
+                                Уведомлять за (дней) *
+                            </label>
+                            <input type="number" id="notify_days_before" min="1" required 
+                                   value="${deadline.notify_days_before || 7}" 
+                                   style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                   onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; padding: 12px; background: #f0f8ff; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-size: 14px; font-weight: 500; color: #555;">
+                            <input type="checkbox" id="notification_enabled" ${deadline.notification_enabled !== false ? 'checked' : ''} 
+                                   style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                            <i class="material-icons" style="font-size: 18px; vertical-align: middle; margin-right: 6px; color: #667eea;">notifications_active</i>
+                            Включить уведомления
                         </label>
                     </div>
                     
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label for="notes">Заметки</label>
-                        <textarea id="notes" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">${deadline.notes || ''}</textarea>
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">
+                            <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #667eea;">notes</i>
+                            Заметки
+                        </label>
+                        <textarea id="notes" rows="3" 
+                                  style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit; transition: all 0.3s; box-sizing: border-box;"
+                                  onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                                  onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">${deadline.notes || ''}</textarea>
                     </div>
                     
-                    <div class="modal-footer">
-                        <button type="button" class="mdl-button" onclick="closeDeadlineModal(this)">Отмена</button>
-                        <button type="submit" class="mdl-button mdl-button--raised mdl-button--colored">
+                    <div style="padding: 16px 24px; background: #f8f9fa; border-radius: 0 0 12px 12px; display: flex; gap: 12px; justify-content: flex-end; margin: 0 -24px -24px -24px;">
+                        <button type="button" onclick="closeDeadlineModal(this)" 
+                                style="padding: 10px 24px; border: 2px solid #e0e0e0; background: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;"
+                                onmouseover="this.style.background='#f5f5f5'"
+                                onmouseout="this.style.background='white'">
+                            <i class="material-icons" style="font-size: 18px;">close</i>
+                            Отмена
+                        </button>
+                        <button type="submit" 
+                                style="padding: 10px 24px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 8px rgba(102,126,234,0.3); transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px;"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)'"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(102,126,234,0.3)'">
+                            <i class="material-icons" style="font-size: 18px;">save</i>
                             ${isEdit ? 'Сохранить' : 'Создать'}
                         </button>
                     </div>
@@ -436,10 +585,13 @@ function createDeadlineModal(mode, deadline = {}) {
         </div>
     `;
     
-    // Загружаем списки клиентов и типов дедлайнов
+    // Загружаем списки клиентов, типов и касс
     setTimeout(async () => {
         await loadClientsForSelect(deadline.client_id);
         await loadDeadlineTypesForSelect(deadline.deadline_type_id);
+        if (deadline.client_id) {
+            await loadCashRegistersForSelect(deadline.client_id, deadline.cash_register_id);
+        }
     }, 50);
     
     return modalDiv;
@@ -506,6 +658,20 @@ async function loadClientsForSelect(selectedId = null) {
             }
             select.appendChild(option);
             console.log('Добавлен клиент:', user.id, '-', option.textContent);
+        });
+        
+        // Добавляем обработчик изменения клиента
+        select.addEventListener('change', async function() {
+            const clientId = this.value;
+            if (clientId) {
+                await loadCashRegistersForSelect(parseInt(clientId), null);
+            } else {
+                // Очищаем список касс
+                const cashRegSelect = document.getElementById('cash_register_id');
+                if (cashRegSelect) {
+                    cashRegSelect.innerHTML = '<option value="">Общий дедлайн (не привязан к кассе)</option>';
+                }
+            }
         });
         
         console.log(`✅ Добавлено ${data.users.length} клиентов в select`);
@@ -582,6 +748,64 @@ async function loadDeadlineTypesForSelect(selectedId = null) {
 }
 
 /**
+ * Загрузка кассовых аппаратов для выпадающего списка
+ */
+async function loadCashRegistersForSelect(clientId, selectedId = null) {
+    try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`${API_BASE_URL}/cash-registers?user_id=${clientId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const registers = await response.json();
+        
+        const select = document.getElementById('cash_register_id');
+        if (!select) return;
+        
+        select.innerHTML = '<option value="">Общий дедлайн (не привязан к кассе)</option>';
+        
+        if (registers && registers.length > 0) {
+            registers.forEach(reg => {
+                const option = document.createElement('option');
+                option.value = reg.id;
+                option.textContent = reg.register_name || reg.model || `Касса #${reg.id}`;
+                option.setAttribute('data-model', reg.model || '');
+                if (selectedId && reg.id === selectedId) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки касс:', error);
+    }
+}
+
+/**
+ * Обновление поля модели ККТ при выборе кассы
+ */
+function updateCashRegisterModelField() {
+    const cashRegisterSelect = document.getElementById('cash_register_id');
+    const modelInput = document.getElementById('cash_register_model');
+    
+    if (!cashRegisterSelect || !modelInput) return;
+    
+    const selectedOption = cashRegisterSelect.options[cashRegisterSelect.selectedIndex];
+    const model = selectedOption.getAttribute('data-model') || '';
+    
+    if (cashRegisterSelect.value) {
+        modelInput.value = model;
+    }
+}
+
+/**
  * Отправка формы дедлайна
  */
 async function submitDeadlineForm(event, mode, deadlineId) {
@@ -590,10 +814,13 @@ async function submitDeadlineForm(event, mode, deadlineId) {
     const formData = {
         client_id: parseInt(document.getElementById('client_id').value),
         deadline_type_id: parseInt(document.getElementById('deadline_type_id').value),
+        cash_register_id: document.getElementById('cash_register_id').value ? parseInt(document.getElementById('cash_register_id').value) : null,
+        cash_register_model: document.getElementById('cash_register_model').value.trim() || null,
         expiration_date: document.getElementById('expiration_date').value,
         notify_days_before: parseInt(document.getElementById('notify_days_before').value),
         notification_enabled: document.getElementById('notification_enabled').checked,
-        notes: document.getElementById('notes').value
+        notes: document.getElementById('notes').value,
+        status: 'active'
     };
     
     console.log('Отправка формы дедлайна:', mode, formData);
@@ -784,4 +1011,18 @@ function resetFilters() {
     
     // Показываем все дедлайны
     renderDeadlinesTable(allDeadlines);
+}
+
+/**
+ * Изменение размера страницы
+ */
+function changePageSize() {
+    const select = document.getElementById('pageSizeSelect');
+    if (select) {
+        currentPageSize = parseInt(select.value) || 20;
+        console.log('Размер страницы изменён на:', currentPageSize);
+        
+        // Применяем текущие фильтры с новым размером
+        applyFilters();
+    }
 }

@@ -357,24 +357,35 @@ function renderUrgentDeadlines(deadlines) {
 
     deadlines.forEach(deadline => {
         const row = document.createElement('tr');
+        row.classList.add('clickable-row');
+        row.addEventListener('click', () => {
+            if (typeof editDeadline === 'function') {
+                editDeadline(deadline.id);
+            }
+        });
         
         // Определение статуса и цвета
         let statusText = '';
         let statusColor = '';
+        let statusClass = 'status-pill--muted';
         const daysRemaining = deadline.days_until_expiration;
 
         if (daysRemaining < 0) {
             statusText = 'Просрочено';
             statusColor = '#9E9E9E';
+            statusClass = 'status-pill--danger';
         } else if (daysRemaining <= 7) {
             statusText = 'Срочно';
             statusColor = '#F44336';
+            statusClass = 'status-pill--danger';
         } else if (daysRemaining <= 14) {
             statusText = 'Внимание';
             statusColor = '#FFC107';
+            statusClass = 'status-pill--warning';
         } else {
             statusText = 'Норма';
             statusColor = '#4CAF50';
+            statusClass = 'status-pill--success';
         }
 
         // Форматирование даты в российский формат ДД.ММ.ГГГГ
@@ -399,7 +410,7 @@ function renderUrgentDeadlines(deadlines) {
                 ${daysRemaining} дн.
             </td>
             <td class="mdl-data-table__cell--non-numeric">
-                <span style="background-color: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">
+                <span class="status-pill ${statusClass}">
                     ${statusText}
                 </span>
             </td>
